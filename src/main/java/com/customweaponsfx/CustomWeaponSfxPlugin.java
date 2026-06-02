@@ -101,19 +101,19 @@ public class CustomWeaponSfxPlugin extends Plugin
 		SOUNDS_DIR.mkdirs();
 		executor = Executors.newSingleThreadExecutor();
 
-		try
-		{
-			Properties props = new Properties();
-			try (InputStream is = CustomWeaponSfxPlugin.class.getResourceAsStream("/customweaponsfx_version.txt"))
-			{
-				if (is != null) props.load(is);
-			}
-			currentVersion = props.getProperty("version", "");
-		}
-		catch (Exception e)
-		{
-			log.debug("Could not load plugin version", e);
-		}
+//		try
+//		{
+//			Properties props = new Properties();
+//			try (InputStream is = CustomWeaponSfxPlugin.class.getResourceAsStream("/customweaponsfx_version.txt"))
+//			{
+//				if (is != null) props.load(is);
+//			}
+//			currentVersion = props.getProperty("version", "");
+//		}
+//		catch (Exception e)
+//		{
+//			log.debug("Could not load plugin version", e);
+//		}
 
 		loadWeaponEntries();
 		loadDefaultGroups(receivedGroups, CustomWeaponSfxPanel.RECEIVED_GROUPS_PREFIX);

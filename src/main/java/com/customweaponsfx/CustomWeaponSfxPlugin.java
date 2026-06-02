@@ -1,7 +1,5 @@
 package com.customweaponsfx;
 
-import com.google.gson.Gson;
-import com.google.gson.JsonObject;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
@@ -74,7 +72,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 	@Inject private ClientToolbar clientToolbar;
 	@Inject private ClientThread clientThread;
 	@Inject private ConfigManager configManager;
-	@Inject private Gson gson;
+//	@Inject private Gson gson;
 	@Inject private ItemManager itemManager;
 	@Inject private WeaponChatboxSearch weaponSearch;
 
@@ -135,11 +133,11 @@ public class CustomWeaponSfxPlugin extends Plugin
 
 		panel.rebuild(new ArrayList<>(weaponEntries), availableSounds, bundledSounds, receivedGroups);
 
-		String savedVersion = getSavedVersionString();
-		String currentVer = currentVersion;
-		String notes = loadPatchNotes(currentVer);
-		SwingUtilities.invokeLater(() ->
-			panel.showCorrectPanel(savedVersion, currentVer, notes, () -> setSavedVersionString(currentVer)));
+		// String savedVersion = getSavedVersionString();
+		// String currentVer = currentVersion;
+		// String notes = loadPatchNotes(currentVer);
+		// SwingUtilities.invokeLater(() ->
+		// 	panel.showCorrectPanel(savedVersion, currentVer, notes, () -> setSavedVersionString(currentVer)));
 
 		clientThread.invoke(() -> lastSpecPct = client.getVarpValue(VARP_SPEC_PERCENT));
 
@@ -161,17 +159,17 @@ public class CustomWeaponSfxPlugin extends Plugin
 
 	private String loadPatchNotes(String version)
 	{
-		try (InputStream is = CustomWeaponSfxPlugin.class.getResourceAsStream("patch_notes.json"))
-		{
-			if (is == null) return "";
-			String json = new String(is.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
-			JsonObject obj = gson.fromJson(json, JsonObject.class);
-			if (obj.has(version)) return obj.get(version).getAsString();
-		}
-		catch (Exception e)
-		{
-			log.debug("Could not load patch notes", e);
-		}
+		// try (InputStream is = CustomWeaponSfxPlugin.class.getResourceAsStream("patch_notes.json"))
+		// {
+		// 	if (is == null) return "";
+		// 	String json = new String(is.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+		// 	JsonObject obj = gson.fromJson(json, JsonObject.class);
+		// 	if (obj.has(version)) return obj.get(version).getAsString();
+		// }
+		// catch (Exception e)
+		// {
+		// 	log.debug("Could not load patch notes", e);
+		// }
 		return "";
 	}
 

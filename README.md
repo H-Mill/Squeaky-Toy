@@ -6,6 +6,8 @@ Play custom sound effects when you attack or get hit in Old School RuneScape.
 
 - Assign sounds to specific weapons
 - Play different sounds for misses, regular hits, and max hits — on both regular and special attacks
+- Dedicated **Player kill** trigger that fires when your attack kills another player
+- Dedicated **Player death** trigger (Received Attacks) that fires when your character dies
 - Separate sounds for when *you* take damage (Received Attacks)
 - Multiple sound groups per weapon, each with its own triggers, sounds, volume, and activation chance
 - Multiple sounds per group — one is picked at random each time the group fires
@@ -23,7 +25,7 @@ Play custom sound effects when you attack or get hit in Old School RuneScape.
 
 ## Sound Groups
 
-Each weapon (and the Received Attacks section) contains one or more **sound groups**. A sound group fires when any of its selected triggers match the outcome of an attack.
+Each weapon (and the Received Attacks section) contains one or more **sound groups**. A sound group fires when its selected triggers match the outcome of an attack (see [Triggers](#triggers) for exact matching rules).
 
 Click **+ Add Sound Group** inside an expanded weapon to add another group. Each group has:
 
@@ -36,15 +38,37 @@ Click **+ Add Sound** inside a group to add more sounds to the random pool.
 
 ## Triggers
 
-| Trigger | When it fires                         |
-|---|---------------------------------------|
-| Regular attack zero | Regular attack that deals 0 damage    |
-| Regular attack max | Regular attack that is a max hit      |
-| Special attack zero | Special attack that deals 0 damage    |
-| Special attack max | Special attack that is a max hit      |
-| All attacks | All attacks |
+| Trigger | When it fires |
+|---|---|
+| Regular attack zero | Regular attack that deals 0 damage |
+| Regular attack max | Regular attack that is a max hit |
+| Special attack zero | Special attack that deals 0 damage |
+| Special attack hit | Special attack that deals non-max damage |
+| Special attack max | Special attack that is a max hit |
+| All attacks | Any attack that deals damage |
+| Player kill | Your attack kills another player |
 
-The **Received Attacks** section supports a subset: Regular attack zero, Regular attack hit, and All attacks.
+The **Received Attacks** section supports a subset: Regular attack zero, Regular attack hit, All attacks, and Player death.
+
+### Player kill trigger
+
+The **Player kill** trigger fires when your hit reduces another player's health to zero. It only works in PvP (wilderness, PvP worlds, etc.) — NPC kills do not activate it.
+
+**Priority:** when a weapon has at least one group with Player kill enabled, that group takes exclusive priority on kills. All other groups on that weapon are suppressed for that attack, even if their own triggers would have matched.
+
+**Combining with damage triggers:** if you add Player kill to a group alongside one or more damage triggers (Regular attack max, Special attack hit, Special attack max, etc.), **both conditions must be met** for the group to fire. For example:
+
+- `Player kill` + `Special attack max` → fires only when you kill a player with a special attack max hit
+- `Player kill` + `Regular attack max` + `Special attack max` → fires when you kill a player with either a regular or special max hit
+- `Player kill` alone → fires on any killing blow, regardless of hit type
+
+This lets you set up a generic kill sound alongside a more specific one for, say, a one-shot special — only the most specific matching group fires.
+
+### Player death trigger
+
+The **Player death** trigger is available only in the **Received Attacks** section. It fires when your character dies, regardless of what killed you (another player, an NPC, poison, etc.).
+
+It fires independently of the hitsplat system — a death from poison or a delayed hit will still trigger it. It cannot be added to weapon sound groups.
 
 ## Enabling and Disabling Weapons
 

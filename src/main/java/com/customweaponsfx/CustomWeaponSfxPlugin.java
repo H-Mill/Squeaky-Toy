@@ -26,6 +26,7 @@ import javax.swing.SwingUtilities;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Actor;
 import net.runelite.api.Client;
+import net.runelite.api.Player;
 import net.runelite.api.GameState;
 import net.runelite.api.EquipmentInventorySlot;
 import net.runelite.api.HitsplatID;
@@ -34,6 +35,7 @@ import net.runelite.api.Skill;
 import net.runelite.api.InventoryID;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
+import net.runelite.api.events.ActorDeath;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.HitsplatApplied;
 import net.runelite.api.events.VarbitChanged;
@@ -208,7 +210,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 		if (!deferredHits.isEmpty())
 		{
 			for (DeferredHit h : deferredHits)
-				buffer(h.key, h.groups, h.wasSpec, h.amount, h.isMax, h.tick);
+				buffer(h.key, h.groups, h.wasSpec, h.amount, h.isMax, h.tick, h.actor);
 			deferredHits.clear();
 		}
 
@@ -223,7 +225,10 @@ public class CustomWeaponSfxPlugin extends Plugin
 				int maxAmount   = attack.amounts.stream().mapToInt(Integer::intValue).max().orElse(0);
 				boolean suppressMax  = ignoreSmallMaxHits && allMax && maxAmount <= 3;
 				boolean suppressZero = ignoreZeroWhileThrallActive && thrallTicksRemaining > 0;
-				fireMatchingGroups(attack.groups, attack.wasSpec, anyHit, allZero, allMax, suppressMax, suppressZero);
+				boolean isKill = attack.actors.stream()
+					.filter(a -> a instanceof Player && a != client.getLocalPlayer())
+					.anyMatch(a -> ((Player) a).getHealthRatio() == 0);
+				fireMatchingGroups(attack.groups, attack.wasSpec, anyHit, allZero, allMax, suppressMax, suppressZero, isKill);
 				if (attack.wasSpec) specHitsplatSeen = true;
 			}
 			pendingAttacks.clear();
@@ -249,7 +254,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 		{
 			if (amount == 0 && ignoreReceivedZeroWithPrayer && isProtectionPrayerActive())
 				return;
-			buffer(RECEIVED_KEY, receivedGroups, false, amount, false, tick);
+			buffer(RECEIVED_KEY, receivedGroups, false, amount, false, tick, null);
 			return;
 		}
 
@@ -263,7 +268,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 
 		WeaponEntry entry = getWeaponEntry(weaponId);
 		if (entry != null && entry.isEnabled())
-			deferredHits.add(new DeferredHit(weaponId, entry.getGroups(), wasSpec, amount, isMax, tick));
+			deferredHits.add(new DeferredHit(weaponId, entry.getGroups(), wasSpec, amount, isMax, tick, actor));
 	}
 
 	private void resetAllData()
@@ -345,6 +350,17 @@ public class CustomWeaponSfxPlugin extends Plugin
 	}
 
 	@Subscribe
+	public void onActorDeath(ActorDeath event)
+	{
+		if (event.getActor() != client.getLocalPlayer()) return;
+		for (TriggerGroup group : receivedGroups)
+		{
+			if (!group.getTriggers().contains(Triggers.PLAYER_DEATH)) continue;
+			fireGroup(group);
+		}
+	}
+
+	@Subscribe
 	public void onVarbitChanged(VarbitChanged event)
 	{
 		if (event.getVarbitId() != VarbitID.ARCEUUS_RESURRECTION_COOLDOWN) return;
@@ -363,7 +379,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 	}
 
 	private void buffer(int key, List<TriggerGroup> groups,
-						boolean wasSpec, int amount, boolean isMax, int tick)
+						boolean wasSpec, int amount, boolean isMax, int tick, Actor actor)
 	{
 		if (tick != pendingAttackTick)
 		{
@@ -380,6 +396,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 		}
 		attack.amounts.add(amount);
 		attack.isMaxList.add(isMax);
+		if (actor != null) attack.actors.add(actor);
 	}
 
 	private void onSpecFired()
@@ -660,38 +677,75 @@ public class CustomWeaponSfxPlugin extends Plugin
 
 	private void fireMatchingGroups(List<TriggerGroup> groups, boolean wasSpec,
 									boolean anyHit, boolean allZero, boolean allMax,
-									boolean suppressMax, boolean suppressZero)
+									boolean suppressMax, boolean suppressZero, boolean isKill)
 	{
+		// If a kill occurred and this weapon has KILL-trigger groups, those take exclusive priority.
+		boolean hasKillGroups = isKill && groups.stream()
+			.anyMatch(g -> !g.getTriggers().isEmpty() && g.getTriggers().contains(Triggers.KILL));
+
 		for (TriggerGroup group : groups)
 		{
 			Set<Triggers> triggers = group.getTriggers();
 			if (triggers.isEmpty()) continue;
+			// PLAYER_DEATH groups are fired exclusively from onActorDeath, not from the hitsplat path.
+			if (triggers.contains(Triggers.PLAYER_DEATH)) continue;
 
-			boolean matches = false;
-			for (Triggers trigger : triggers)
+			boolean groupHasKill = triggers.contains(Triggers.KILL);
+			// Kill groups only fire on kills; when kill groups exist, non-kill groups are suppressed.
+			if (groupHasKill != hasKillGroups) continue;
+
+			boolean matches;
+			if (groupHasKill)
 			{
-				if (matchesTrigger(trigger, wasSpec, anyHit, allZero, allMax, suppressMax, suppressZero))
+				// isKill is guaranteed true here (hasKillGroups requires it).
+				// Any non-KILL triggers in the group also need at least one to match (AND gate).
+				boolean hasOtherTriggers = false;
+				boolean anyOtherMatches = false;
+				for (Triggers trigger : triggers)
 				{
-					matches = true;
-					break;
+					if (trigger == Triggers.KILL) continue;
+					hasOtherTriggers = true;
+					if (matchesTrigger(trigger, wasSpec, anyHit, allZero, allMax, suppressMax, suppressZero, isKill))
+					{
+						anyOtherMatches = true;
+						break;
+					}
+				}
+				matches = !hasOtherTriggers || anyOtherMatches;
+			}
+			else
+			{
+				matches = false;
+				for (Triggers trigger : triggers)
+				{
+					if (matchesTrigger(trigger, wasSpec, anyHit, allZero, allMax, suppressMax, suppressZero, isKill))
+					{
+						matches = true;
+						break;
+					}
 				}
 			}
 			if (!matches) continue;
-			int chance = group.getChance();
-			if (chance <= 0) continue;
-			if (chance < 100 && ThreadLocalRandom.current().nextInt(100) >= chance) continue;
-			List<SoundEntry> sounds = group.getSounds();
-			if (sounds.isEmpty()) continue;
-			SoundEntry se = sounds.size() == 1
-				? sounds.get(0)
-				: sounds.get(ThreadLocalRandom.current().nextInt(sounds.size()));
-			playSoundFile(se.getSoundFile(), se.getVolume());
+			fireGroup(group);
 		}
+	}
+
+	private void fireGroup(TriggerGroup group)
+	{
+		int chance = group.getChance();
+		if (chance <= 0) return;
+		if (chance < 100 && ThreadLocalRandom.current().nextInt(100) >= chance) return;
+		List<SoundEntry> sounds = group.getSounds();
+		if (sounds.isEmpty()) return;
+		SoundEntry se = sounds.size() == 1
+			? sounds.get(0)
+			: sounds.get(ThreadLocalRandom.current().nextInt(sounds.size()));
+		playSoundFile(se.getSoundFile(), se.getVolume());
 	}
 
 	private static boolean matchesTrigger(Triggers trigger, boolean wasSpec,
 										   boolean anyHit, boolean allZero, boolean allMax,
-										   boolean suppressMax, boolean suppressZero)
+										   boolean suppressMax, boolean suppressZero, boolean isKill)
 	{
 		switch (trigger)
 		{
@@ -702,6 +756,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 			case SPECIAL_HIT:  return wasSpec && anyHit && !allMax;
 			case SPECIAL_MAX:  return wasSpec && allMax && !suppressMax;
 			case ALL:          return anyHit;
+			case KILL:         return isKill;
 			default:           return false;
 		}
 	}
@@ -818,7 +873,8 @@ public class CustomWeaponSfxPlugin extends Plugin
 	{
 		return new ArrayList<>(Arrays.asList("bonk", "punch", "shot",
 				"squeak", "oh-baby-a-triple", "emotional-damage",
-				"minecraft-hit", "minecraft-oof", "thats-a-lot-of-damage"));
+				"minecraft-hit", "minecraft-oof", "thats-a-lot-of-damage",
+				"gta-wasted","mario-death","okay"));
 	}
 
 	private static float volumeToGain(int volume)
@@ -836,8 +892,9 @@ public class CustomWeaponSfxPlugin extends Plugin
 		final int              amount;
 		final boolean          isMax;
 		final int              tick;
+		final Actor            actor;
 
-		DeferredHit(int key, List<TriggerGroup> groups, boolean wasSpec, int amount, boolean isMax, int tick)
+		DeferredHit(int key, List<TriggerGroup> groups, boolean wasSpec, int amount, boolean isMax, int tick, Actor actor)
 		{
 			this.key     = key;
 			this.groups  = groups;
@@ -845,6 +902,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 			this.amount  = amount;
 			this.isMax   = isMax;
 			this.tick    = tick;
+			this.actor   = actor;
 		}
 	}
 
@@ -853,6 +911,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 		final List<TriggerGroup> groups;
 		final List<Integer>      amounts   = new ArrayList<>();
 		final List<Boolean>      isMaxList = new ArrayList<>();
+		final List<Actor>        actors    = new ArrayList<>();
 		boolean                  wasSpec   = false;
 
 		PendingAttack(List<TriggerGroup> groups) { this.groups = groups; }

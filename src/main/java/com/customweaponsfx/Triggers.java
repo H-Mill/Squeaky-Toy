@@ -13,7 +13,9 @@ public enum Triggers
 	SPECIAL_ZERO("Special attack zero"),
 	SPECIAL_HIT("Special attack hit"),
 	SPECIAL_MAX("Special attack max"),
-	ALL("All attacks");
+	ALL("All attacks"),
+	KILL("Player kill"),
+	PLAYER_DEATH("Player death");
 
 	private final String name;
 

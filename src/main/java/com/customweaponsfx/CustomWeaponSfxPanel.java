@@ -210,7 +210,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 
 			weaponListPanel.add(buildDefaultRowGroups(
 				"Received Attacks", RECEIVED_GROUPS_PREFIX, receivedGroups, availableSounds,
-				EnumSet.of(Triggers.REGULAR_ZERO, Triggers.REGULAR_HIT, Triggers.ALL)));
+				EnumSet.of(Triggers.REGULAR_ZERO, Triggers.REGULAR_HIT, Triggers.ALL, Triggers.PLAYER_DEATH)));
 			weaponListPanel.add(Box.createVerticalStrut(4));
 
 
@@ -384,7 +384,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		groupsHolder.setVisible(!collapsed);
 		rebuildGroupsSection(groupsHolder, entry.getGroups(), availableSounds,
 			() -> saveWeaponGroupsFromPanel(entry),
-			EnumSet.complementOf(EnumSet.of(Triggers.REGULAR_HIT)));
+			EnumSet.complementOf(EnumSet.of(Triggers.REGULAR_HIT, Triggers.PLAYER_DEATH)));
 		panel.add(groupsHolder);
 
 		collapseBtn.addActionListener(e ->

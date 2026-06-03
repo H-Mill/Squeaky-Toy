@@ -30,11 +30,14 @@ import net.runelite.api.GameState;
 import net.runelite.api.EquipmentInventorySlot;
 import net.runelite.api.HitsplatID;
 import net.runelite.api.Prayer;
+import net.runelite.api.Skill;
 import net.runelite.api.InventoryID;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.HitsplatApplied;
+import net.runelite.api.events.VarbitChanged;
+import net.runelite.api.gameval.VarbitID;
 import net.runelite.client.audio.AudioPlayer;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
@@ -89,6 +92,8 @@ public class CustomWeaponSfxPlugin extends Plugin
 
 	private boolean ignoreSmallMaxHits = true;
 	private boolean ignoreReceivedZeroWithPrayer = true;
+	private boolean ignoreZeroWhileThrallActive = true;
+	private int thrallTicksRemaining = 0;
 
 	// Hitsplats are batched per tick so multi-hit attacks are evaluated together.
 	private final Map<Integer, PendingAttack> pendingAttacks = new HashMap<>();
@@ -128,7 +133,10 @@ public class CustomWeaponSfxPlugin extends Plugin
 		String ignoreZeroVal = configManager.getConfiguration(CONFIG_GROUP, "ignoreReceivedZeroWithPrayer");
 		ignoreReceivedZeroWithPrayer = ignoreZeroVal == null || Boolean.parseBoolean(ignoreZeroVal);
 
-		panel = new CustomWeaponSfxPanel(configManager, itemManager, this::openWeaponSearch, this::addEquippedWeapon, this::removeWeapon, this::refreshSounds, this::playSoundFile, this::resetAllData, this::onIgnoreSmallMaxHitsChanged, this::onIgnoreReceivedZeroWithPrayerChanged);
+		panel = new CustomWeaponSfxPanel(configManager, itemManager,
+				this::openWeaponSearch, this::addEquippedWeapon, this::removeWeapon,
+				this::refreshSounds, this::playSoundFile, this::resetAllData, this::onIgnoreSmallMaxHitsChanged,
+				this::onIgnoreReceivedZeroWithPrayerChanged, this::onIgnoreZeroWhileThrallActiveChanged);
 
 		navButton = NavigationButton.builder()
 			.tooltip("Custom Weapon SFX")
@@ -167,6 +175,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 		lastSpecPct = -1;
 		pendingSpecItemId = -1;
 		pendingSpecTick = -1;
+		thrallTicksRemaining = 0;
 
 		pendingAttacks.clear();
 		pendingAttackTick = -1;
@@ -194,6 +203,8 @@ public class CustomWeaponSfxPlugin extends Plugin
 			pendingSpecTick = -1;
 		}
 
+		if (thrallTicksRemaining > 0) thrallTicksRemaining--;
+
 		if (!deferredHits.isEmpty())
 		{
 			for (DeferredHit h : deferredHits)
@@ -210,8 +221,9 @@ public class CustomWeaponSfxPlugin extends Plugin
 				boolean anyHit  = attack.amounts.stream().anyMatch(a -> a > 0);
 				boolean allZero = attack.amounts.stream().allMatch(a -> a == 0);
 				int maxAmount   = attack.amounts.stream().mapToInt(Integer::intValue).max().orElse(0);
-				boolean suppressMax = ignoreSmallMaxHits && allMax && maxAmount <= 3;
-				fireMatchingGroups(attack.groups, attack.wasSpec, anyHit, allZero, allMax, suppressMax);
+				boolean suppressMax  = ignoreSmallMaxHits && allMax && maxAmount <= 3;
+				boolean suppressZero = ignoreZeroWhileThrallActive && thrallTicksRemaining > 0;
+				fireMatchingGroups(attack.groups, attack.wasSpec, anyHit, allZero, allMax, suppressMax, suppressZero);
 				if (attack.wasSpec) specHitsplatSeen = true;
 			}
 			pendingAttacks.clear();
@@ -289,6 +301,8 @@ public class CustomWeaponSfxPlugin extends Plugin
 		configManager.setConfiguration(CONFIG_GROUP, "ignoreSmallMaxHits", true);
 		ignoreReceivedZeroWithPrayer = true;
 		configManager.setConfiguration(CONFIG_GROUP, "ignoreReceivedZeroWithPrayer", true);
+		ignoreZeroWhileThrallActive = true;
+		configManager.setConfiguration(CONFIG_GROUP, "ignoreZeroWhileThrallActive", true);
 		if (panel != null) panel.resetToggles();
 
 		rebuildPanel();
@@ -322,6 +336,23 @@ public class CustomWeaponSfxPlugin extends Plugin
 	{
 		ignoreReceivedZeroWithPrayer = value;
 		configManager.setConfiguration(CONFIG_GROUP, "ignoreReceivedZeroWithPrayer", value);
+	}
+
+	private void onIgnoreZeroWhileThrallActiveChanged(boolean value)
+	{
+		ignoreZeroWhileThrallActive = value;
+		configManager.setConfiguration(CONFIG_GROUP, "ignoreZeroWhileThrallActive", value);
+	}
+
+	@Subscribe
+	public void onVarbitChanged(VarbitChanged event)
+	{
+		if (event.getVarbitId() != VarbitID.ARCEUUS_RESURRECTION_COOLDOWN) return;
+		if (event.getValue() != 1) return;
+
+		int ticks = client.getBoostedSkillLevel(Skill.MAGIC);
+		if (client.getVarbitValue(VarbitID.CA_TIER_STATUS_MASTER) == 2) ticks += ticks;
+		thrallTicksRemaining = ticks + 4;
 	}
 
 	private boolean isProtectionPrayerActive()
@@ -628,7 +659,8 @@ public class CustomWeaponSfxPlugin extends Plugin
 	}
 
 	private void fireMatchingGroups(List<TriggerGroup> groups, boolean wasSpec,
-									boolean anyHit, boolean allZero, boolean allMax, boolean suppressMax)
+									boolean anyHit, boolean allZero, boolean allMax,
+									boolean suppressMax, boolean suppressZero)
 	{
 		for (TriggerGroup group : groups)
 		{
@@ -638,7 +670,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 			boolean matches = false;
 			for (Triggers trigger : triggers)
 			{
-				if (matchesTrigger(trigger, wasSpec, anyHit, allZero, allMax, suppressMax))
+				if (matchesTrigger(trigger, wasSpec, anyHit, allZero, allMax, suppressMax, suppressZero))
 				{
 					matches = true;
 					break;
@@ -658,11 +690,12 @@ public class CustomWeaponSfxPlugin extends Plugin
 	}
 
 	private static boolean matchesTrigger(Triggers trigger, boolean wasSpec,
-										   boolean anyHit, boolean allZero, boolean allMax, boolean suppressMax)
+										   boolean anyHit, boolean allZero, boolean allMax,
+										   boolean suppressMax, boolean suppressZero)
 	{
 		switch (trigger)
 		{
-			case REGULAR_ZERO: return !wasSpec && allZero;
+			case REGULAR_ZERO: return !wasSpec && allZero && !suppressZero;
 			case REGULAR_HIT:  return !wasSpec && anyHit && !allMax;
 			case REGULAR_MAX:  return !wasSpec && allMax && !suppressMax;
 			case SPECIAL_ZERO: return wasSpec && allZero;

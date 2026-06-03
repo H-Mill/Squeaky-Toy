@@ -53,9 +53,11 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	private final Runnable onReset;
 	private final Consumer<Boolean> onIgnoreSmallMaxHitsToggled;
 	private final Consumer<Boolean> onIgnoreReceivedZeroWithPrayerToggled;
+	private final Consumer<Boolean> onIgnoreZeroWhileThrallActiveToggled;
 
 	private JCheckBox ignoreSmallMaxCheckBox;
 	private JCheckBox ignoreZeroPrayerCheckBox;
+	private JCheckBox ignoreZeroThrallCheckBox;
 
 	private final JPanel weaponListPanel;
 	private final JPanel mainContent;
@@ -70,7 +72,8 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		BiConsumer<String, Integer> onTestSound,
 		Runnable onReset,
 		Consumer<Boolean> onIgnoreSmallMaxHitsToggled,
-		Consumer<Boolean> onIgnoreReceivedZeroWithPrayerToggled)
+		Consumer<Boolean> onIgnoreReceivedZeroWithPrayerToggled,
+		Consumer<Boolean> onIgnoreZeroWhileThrallActiveToggled)
 	{
 		this.configManager = configManager;
 		this.itemManager = itemManager;
@@ -82,6 +85,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		this.onReset = onReset;
 		this.onIgnoreSmallMaxHitsToggled = onIgnoreSmallMaxHitsToggled;
 		this.onIgnoreReceivedZeroWithPrayerToggled = onIgnoreReceivedZeroWithPrayerToggled;
+		this.onIgnoreZeroWhileThrallActiveToggled = onIgnoreZeroWhileThrallActiveToggled;
 
 		setLayout(new BorderLayout());
 		setBorder(new EmptyBorder(10, 10, 10, 10));
@@ -210,6 +214,18 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		ignoreZeroPrayerCheckBox.setAlignmentX(Component.LEFT_ALIGNMENT);
 		ignoreZeroPrayerCheckBox.addActionListener(e -> onIgnoreReceivedZeroWithPrayerToggled.accept(ignoreZeroPrayerCheckBox.isSelected()));
 		top.add(ignoreZeroPrayerCheckBox);
+		top.add(Box.createVerticalStrut(2));
+
+		String ignoreThrallZeroVal = configManager.getConfiguration(CustomWeaponSfxPlugin.CONFIG_GROUP, "ignoreZeroWhileThrallActive");
+		boolean ignoreZeroWhileThrallActive = ignoreThrallZeroVal == null || Boolean.parseBoolean(ignoreThrallZeroVal);
+
+		ignoreZeroThrallCheckBox = new JCheckBox("Ignore zeroes with thrall", ignoreZeroWhileThrallActive);
+		ignoreZeroThrallCheckBox.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		ignoreZeroThrallCheckBox.setToolTipText("<html>When enabled, zero-damage triggers will not fire<br>"
+			+ "while a thrall is active.</html>");
+		ignoreZeroThrallCheckBox.setAlignmentX(Component.LEFT_ALIGNMENT);
+		ignoreZeroThrallCheckBox.addActionListener(e -> onIgnoreZeroWhileThrallActiveToggled.accept(ignoreZeroThrallCheckBox.isSelected()));
+		top.add(ignoreZeroThrallCheckBox);
 		top.add(Box.createVerticalStrut(4));
 
 		return top;
@@ -246,6 +262,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		{
 			if (ignoreSmallMaxCheckBox != null) ignoreSmallMaxCheckBox.setSelected(true);
 			if (ignoreZeroPrayerCheckBox != null) ignoreZeroPrayerCheckBox.setSelected(true);
+			if (ignoreZeroThrallCheckBox != null) ignoreZeroThrallCheckBox.setSelected(true);
 		});
 	}
 

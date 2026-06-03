@@ -3,21 +3,14 @@ package com.customweaponsfx;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
-import java.io.File;
-import java.io.InputStream;
-import java.net.JarURLConnection;
-import java.net.URL;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumSet;
-import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.jar.JarEntry;
-import java.util.jar.JarFile;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -36,7 +29,6 @@ import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.HitsplatApplied;
-import net.runelite.client.RuneLite;
 import net.runelite.client.audio.AudioPlayer;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
@@ -58,10 +50,6 @@ import net.runelite.client.util.ImageUtil;
 public class CustomWeaponSfxPlugin extends Plugin
 {
 	static final String CONFIG_GROUP = "customweaponsfx";
-	static final String CONFIG_KEY_VERSION = "version";
-	static final File SOUNDS_DIR = new File(RuneLite.RUNELITE_DIR, "customweaponsfx");
-
-	private String currentVersion = "";
 
 	private static final int VARP_SPEC_PERCENT = 300;
 	private static final int PENDING_SPEC_TIMEOUT_TICKS = 10;
@@ -72,7 +60,6 @@ public class CustomWeaponSfxPlugin extends Plugin
 	@Inject private ClientToolbar clientToolbar;
 	@Inject private ClientThread clientThread;
 	@Inject private ConfigManager configManager;
-//	@Inject private Gson gson;
 	@Inject private ItemManager itemManager;
 	@Inject private WeaponChatboxSearch weaponSearch;
 
@@ -98,30 +85,15 @@ public class CustomWeaponSfxPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
-		SOUNDS_DIR.mkdirs();
 		executor = Executors.newSingleThreadExecutor();
-
-//		try
-//		{
-//			Properties props = new Properties();
-//			try (InputStream is = CustomWeaponSfxPlugin.class.getResourceAsStream("/customweaponsfx_version.txt"))
-//			{
-//				if (is != null) props.load(is);
-//			}
-//			currentVersion = props.getProperty("version", "");
-//		}
-//		catch (Exception e)
-//		{
-//			log.debug("Could not load plugin version", e);
-//		}
 
 		loadWeaponEntries();
 		loadDefaultGroups(receivedGroups, CustomWeaponSfxPanel.RECEIVED_GROUPS_PREFIX);
 		seedFirstRunGroups(receivedGroups, CustomWeaponSfxPanel.RECEIVED_GROUPS_PREFIX, EnumSet.of(Triggers.REGULAR_ZERO));
 		bundledSounds = scanBundledSounds();
-		availableSounds = scanSounds();
+		availableSounds = new ArrayList<>();
 
-		panel = new CustomWeaponSfxPanel(configManager, itemManager, this::openWeaponSearch, this::addEquippedWeapon, this::removeWeapon, this::refreshSounds, this::playSoundFile, this::resetAllData);
+		panel = new CustomWeaponSfxPanel(configManager, itemManager, this::openWeaponSearch, this::addEquippedWeapon, this::removeWeapon, this::playSoundFile, this::resetAllData);
 
 		navButton = NavigationButton.builder()
 			.tooltip("Custom Weapon SFX")
@@ -133,44 +105,9 @@ public class CustomWeaponSfxPlugin extends Plugin
 
 		panel.rebuild(new ArrayList<>(weaponEntries), availableSounds, bundledSounds, receivedGroups);
 
-		// String savedVersion = getSavedVersionString();
-		// String currentVer = currentVersion;
-		// String notes = loadPatchNotes(currentVer);
-		// SwingUtilities.invokeLater(() ->
-		// 	panel.showCorrectPanel(savedVersion, currentVer, notes, () -> setSavedVersionString(currentVer)));
-
 		clientThread.invoke(() -> lastSpecPct = client.getVarpValue(VARP_SPEC_PERCENT));
 
 		log.debug("Custom Weapon SFX started!");
-	}
-
-	public String getCurrentVersionString() { return currentVersion; }
-
-	public String getSavedVersionString()
-	{
-		String v = configManager.getConfiguration(CONFIG_GROUP, CONFIG_KEY_VERSION);
-		return v == null ? "" : v;
-	}
-
-	public void setSavedVersionString(String version)
-	{
-		configManager.setConfiguration(CONFIG_GROUP, CONFIG_KEY_VERSION, version);
-	}
-
-	private String loadPatchNotes(String version)
-	{
-		// try (InputStream is = CustomWeaponSfxPlugin.class.getResourceAsStream("patch_notes.json"))
-		// {
-		// 	if (is == null) return "";
-		// 	String json = new String(is.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
-		// 	JsonObject obj = gson.fromJson(json, JsonObject.class);
-		// 	if (obj.has(version)) return obj.get(version).getAsString();
-		// }
-		// catch (Exception e)
-		// {
-		// 	log.debug("Could not load patch notes", e);
-		// }
-		return "";
 	}
 
 	@Override
@@ -463,7 +400,6 @@ public class CustomWeaponSfxPlugin extends Plugin
 
 	private void refreshSounds()
 	{
-		availableSounds = scanSounds();
 		rebuildPanel();
 	}
 
@@ -484,22 +420,6 @@ public class CustomWeaponSfxPlugin extends Plugin
 			if (entry.getItemId() == itemId) return entry;
 		}
 		return null;
-	}
-
-	private List<String> scanSounds()
-	{
-		List<String> sounds = new ArrayList<>();
-		File[] files = SOUNDS_DIR.listFiles(f -> f.isFile() && f.getName().toLowerCase().endsWith(".wav"));
-		if (files != null)
-		{
-			for (File f : files)
-			{
-				String name = f.getName();
-				sounds.add(name.substring(0, name.length() - 4));
-			}
-			sounds.sort(String.CASE_INSENSITIVE_ORDER);
-		}
-		return sounds;
 	}
 
 	private void loadWeaponEntries()
@@ -729,66 +649,13 @@ public class CustomWeaponSfxPlugin extends Plugin
 				catch (Exception e) { log.debug("Failed to play bundled sound {}", name, e); }
 			});
 		}
-		else
-		{
-			File f = new File(SOUNDS_DIR, soundFile + ".wav");
-			if (!f.exists())
-			{
-				log.debug("Sound file missing: {}", f.getAbsolutePath());
-				return;
-			}
-			executor.submit(() ->
-			{
-				try { audioPlayer.play(f, gain); }
-				catch (Exception e) { log.debug("Failed to play {}", soundFile, e); }
-			});
-		}
 	}
 
 	private List<String> scanBundledSounds()
 	{
-		List<String> sounds = new ArrayList<>();
-		URL anchor = CustomWeaponSfxPlugin.class.getResource("squeak.wav");
-		if (anchor == null) return sounds;
-		try
-		{
-			if ("file".equals(anchor.getProtocol()))
-			{
-				File dir = new File(anchor.toURI()).getParentFile();
-				File[] files = dir.listFiles(f -> f.isFile() && f.getName().toLowerCase().endsWith(".wav"));
-				if (files != null)
-				{
-					for (File f : files)
-						sounds.add(f.getName().substring(0, f.getName().length() - 4));
-				}
-			}
-			else if ("jar".equals(anchor.getProtocol()))
-			{
-				JarURLConnection conn = (JarURLConnection) anchor.openConnection();
-				String entryName = conn.getEntryName();
-				String prefix = entryName.substring(0, entryName.lastIndexOf('/') + 1);
-				try (JarFile jar = conn.getJarFile())
-				{
-					Enumeration<JarEntry> entries = jar.entries();
-					while (entries.hasMoreElements())
-					{
-						JarEntry entry = entries.nextElement();
-						String name = entry.getName();
-						if (name.startsWith(prefix) && name.endsWith(".wav") && !entry.isDirectory()
-							&& !name.substring(prefix.length()).contains("/"))
-						{
-							sounds.add(name.substring(prefix.length(), name.length() - 4));
-						}
-					}
-				}
-			}
-		}
-		catch (Exception e)
-		{
-			log.debug("Failed to scan bundled sounds", e);
-		}
-		sounds.sort(String.CASE_INSENSITIVE_ORDER);
-		return sounds;
+		return new ArrayList<>(Arrays.asList("bonk", "punch", "shot",
+				"squeak", "oh-baby-a-triple", "emotional-damage",
+				"minecraft-hit", "minecraft-oof", "thats-a-lot-of-damage"));
 	}
 
 	private static float volumeToGain(int volume)

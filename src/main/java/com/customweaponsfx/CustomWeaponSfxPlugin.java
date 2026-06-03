@@ -3,6 +3,11 @@ package com.customweaponsfx;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
+import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import java.io.File;
+import java.io.InputStream;
+import java.util.Properties;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
@@ -39,6 +44,7 @@ import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
+import net.runelite.client.RuneLite;
 import net.runelite.client.util.ImageUtil;
 
 @Slf4j
@@ -51,6 +57,8 @@ import net.runelite.client.util.ImageUtil;
 public class CustomWeaponSfxPlugin extends Plugin
 {
 	static final String CONFIG_GROUP = "customweaponsfx";
+	static final String CONFIG_KEY_VERSION = "version";
+	static final File SOUNDS_DIR = new File(RuneLite.RUNELITE_DIR, "customweaponsfx");
 
 	private static final int VARP_SPEC_PERCENT = 300;
 	private static final int PENDING_SPEC_TIMEOUT_TICKS = 10;
@@ -63,6 +71,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 	@Inject private ConfigManager configManager;
 	@Inject private ItemManager itemManager;
 	@Inject private WeaponChatboxSearch weaponSearch;
+	@Inject private Gson gson;
 
 	private ExecutorService executor;
 	private CustomWeaponSfxPanel panel;
@@ -72,6 +81,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 	private final List<TriggerGroup> receivedGroups = new CopyOnWriteArrayList<>();
 	private List<String> bundledSounds = new ArrayList<>();
 	private List<String> availableSounds = new ArrayList<>();
+	private String currentVersion = "";
 
 	private int lastSpecPct = -1;
 	private int pendingSpecItemId = -1;
@@ -89,13 +99,28 @@ public class CustomWeaponSfxPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
+		SOUNDS_DIR.mkdirs();
 		executor = Executors.newSingleThreadExecutor();
+
+		try
+		{
+			Properties props = new Properties();
+			try (InputStream is = CustomWeaponSfxPlugin.class.getResourceAsStream("/customweaponsfx_version.txt"))
+			{
+				if (is != null) props.load(is);
+			}
+			currentVersion = props.getProperty("version", "");
+		}
+		catch (Exception e)
+		{
+			log.debug("Could not load plugin version", e);
+		}
 
 		loadWeaponEntries();
 		loadDefaultGroups(receivedGroups, CustomWeaponSfxPanel.RECEIVED_GROUPS_PREFIX);
 		seedFirstRunGroups(receivedGroups, CustomWeaponSfxPanel.RECEIVED_GROUPS_PREFIX, EnumSet.of(Triggers.REGULAR_ZERO));
 		bundledSounds = scanBundledSounds();
-		availableSounds = new ArrayList<>();
+		availableSounds = scanSounds();
 
 		String ignoreVal = configManager.getConfiguration(CONFIG_GROUP, "ignoreSmallMaxHits");
 		ignoreSmallMaxHits = ignoreVal == null || Boolean.parseBoolean(ignoreVal);
@@ -103,7 +128,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 		String ignoreZeroVal = configManager.getConfiguration(CONFIG_GROUP, "ignoreReceivedZeroWithPrayer");
 		ignoreReceivedZeroWithPrayer = ignoreZeroVal == null || Boolean.parseBoolean(ignoreZeroVal);
 
-		panel = new CustomWeaponSfxPanel(configManager, itemManager, this::openWeaponSearch, this::addEquippedWeapon, this::removeWeapon, this::playSoundFile, this::resetAllData, this::onIgnoreSmallMaxHitsChanged, this::onIgnoreReceivedZeroWithPrayerChanged);
+		panel = new CustomWeaponSfxPanel(configManager, itemManager, this::openWeaponSearch, this::addEquippedWeapon, this::removeWeapon, this::refreshSounds, this::playSoundFile, this::resetAllData, this::onIgnoreSmallMaxHitsChanged, this::onIgnoreReceivedZeroWithPrayerChanged);
 
 		navButton = NavigationButton.builder()
 			.tooltip("Custom Weapon SFX")
@@ -114,6 +139,12 @@ public class CustomWeaponSfxPlugin extends Plugin
 		clientToolbar.addNavigation(navButton);
 
 		panel.rebuild(new ArrayList<>(weaponEntries), availableSounds, bundledSounds, receivedGroups);
+
+		String savedVersion = getSavedVersionString();
+		String currentVer = currentVersion;
+		String notes = loadPatchNotes(currentVer);
+		SwingUtilities.invokeLater(() ->
+			panel.showCorrectPanel(savedVersion, currentVer, notes, () -> setSavedVersionString(currentVer)));
 
 		clientThread.invoke(() -> lastSpecPct = client.getVarpValue(VARP_SPEC_PERCENT));
 
@@ -439,6 +470,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 
 	private void refreshSounds()
 	{
+		availableSounds = scanSounds();
 		rebuildPanel();
 	}
 
@@ -677,17 +709,76 @@ public class CustomWeaponSfxPlugin extends Plugin
 		if (volume == 0) return;
 		float gain = volumeToGain(volume);
 
-		if (soundFile == null || soundFile.isEmpty() || soundFile.startsWith(CustomWeaponSfxPanel.BUNDLED_PREFIX))
+		if (soundFile == null || soundFile.isEmpty() || soundFile.endsWith(CustomWeaponSfxPanel.BUILTIN_SUFFIX))
 		{
 			String name = (soundFile == null || soundFile.isEmpty())
 				? "squeak.wav"
-				: soundFile.substring(CustomWeaponSfxPanel.BUNDLED_PREFIX.length()) + ".wav";
+				: soundFile.substring(0, soundFile.length() - CustomWeaponSfxPanel.BUILTIN_SUFFIX.length()) + ".wav";
 			executor.submit(() ->
 			{
 				try { audioPlayer.play(CustomWeaponSfxPlugin.class, name, gain); }
 				catch (Exception e) { log.debug("Failed to play bundled sound {}", name, e); }
 			});
 		}
+		else
+		{
+			File f = new File(SOUNDS_DIR, soundFile + ".wav");
+			if (!f.exists())
+			{
+				log.debug("Sound file missing: {}", f.getAbsolutePath());
+				return;
+			}
+			executor.submit(() ->
+			{
+				try { audioPlayer.play(f, gain); }
+				catch (Exception e) { log.debug("Failed to play {}", soundFile, e); }
+			});
+		}
+	}
+
+	public String getCurrentVersionString() { return currentVersion; }
+
+	public String getSavedVersionString()
+	{
+		String v = configManager.getConfiguration(CONFIG_GROUP, CONFIG_KEY_VERSION);
+		return v == null ? "" : v;
+	}
+
+	public void setSavedVersionString(String version)
+	{
+		configManager.setConfiguration(CONFIG_GROUP, CONFIG_KEY_VERSION, version);
+	}
+
+	private String loadPatchNotes(String version)
+	{
+		try (InputStream is = CustomWeaponSfxPlugin.class.getResourceAsStream("patch_notes.json"))
+		{
+			if (is == null) return "";
+			String json = new String(is.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
+			JsonObject obj = gson.fromJson(json, JsonObject.class);
+			if (obj.has(version)) return obj.get(version).getAsString();
+		}
+		catch (Exception e)
+		{
+			log.debug("Could not load patch notes", e);
+		}
+		return "";
+	}
+
+	private List<String> scanSounds()
+	{
+		List<String> sounds = new ArrayList<>();
+		File[] files = SOUNDS_DIR.listFiles(f -> f.isFile() && f.getName().toLowerCase().endsWith(".wav"));
+		if (files != null)
+		{
+			for (File f : files)
+			{
+				String name = f.getName();
+				sounds.add(name.substring(0, name.length() - 4));
+			}
+			sounds.sort(String.CASE_INSENSITIVE_ORDER);
+		}
+		return sounds;
 	}
 
 	private List<String> scanBundledSounds()

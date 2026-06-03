@@ -63,11 +63,6 @@ class CustomWeaponSfxUpdatePanel extends JPanel
 		dismissBtn.setAlignmentX(Component.CENTER_ALIGNMENT);
 		dismissBtn.addActionListener(e -> onDismiss.run());
 
-		JLabel dismissHint = new JLabel("Won't show again until the next update");
-		dismissHint.setFont(FontManager.getRunescapeSmallFont());
-		dismissHint.setHorizontalAlignment(JLabel.CENTER);
-		dismissHint.setAlignmentX(Component.CENTER_ALIGNMENT);
-
 		JPanel content = new JPanel();
 		content.setLayout(new BoxLayout(content, BoxLayout.Y_AXIS));
 		content.add(titleLabel);
@@ -75,8 +70,6 @@ class CustomWeaponSfxUpdatePanel extends JPanel
 		content.add(notesPanel);
 		content.add(Box.createRigidArea(new Dimension(0, 10)));
 		content.add(dismissBtn);
-		content.add(Box.createRigidArea(new Dimension(0, 4)));
-		content.add(dismissHint);
 
 		setLayout(new BorderLayout());
 		setBorder(new EmptyBorder(5, 0, 10, 0));

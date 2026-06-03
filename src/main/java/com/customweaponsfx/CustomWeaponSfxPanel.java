@@ -3,6 +3,7 @@ package com.customweaponsfx;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
@@ -29,11 +30,11 @@ import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.ui.PluginPanel;
 import net.runelite.client.util.AsyncBufferedImage;
+import net.runelite.client.util.LinkBrowser;
 
 public class CustomWeaponSfxPanel extends PluginPanel
 {
-	static final String BUNDLED_PREFIX = "bundled:";
-	private static final String BUILTIN_SUFFIX = " (built-in)";
+	static final String BUILTIN_SUFFIX = " (built-in)";
 
 	static final String RECEIVED_GROUPS_PREFIX = "defaultReceived";
 
@@ -47,6 +48,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	private final Runnable onOpenSearch;
 	private final Runnable onAddEquipped;
 	private final Consumer<Integer> onRemoveWeapon;
+	private final Runnable onRefreshSounds;
 	private final BiConsumer<String, Integer> onTestSound;
 	private final Runnable onReset;
 	private final Consumer<Boolean> onIgnoreSmallMaxHitsToggled;
@@ -57,11 +59,14 @@ public class CustomWeaponSfxPanel extends PluginPanel
 
 	private final JPanel weaponListPanel;
 	private final JPanel mainContent;
+	private final JPanel updatePanelWrapper;
+
 	public CustomWeaponSfxPanel(ConfigManager configManager,
 		ItemManager itemManager,
 		Runnable onOpenSearch,
 		Runnable onAddEquipped,
 		Consumer<Integer> onRemoveWeapon,
+		Runnable onRefreshSounds,
 		BiConsumer<String, Integer> onTestSound,
 		Runnable onReset,
 		Consumer<Boolean> onIgnoreSmallMaxHitsToggled,
@@ -72,6 +77,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		this.onOpenSearch = onOpenSearch;
 		this.onAddEquipped = onAddEquipped;
 		this.onRemoveWeapon = onRemoveWeapon;
+		this.onRefreshSounds = onRefreshSounds;
 		this.onTestSound = onTestSound;
 		this.onReset = onReset;
 		this.onIgnoreSmallMaxHitsToggled = onIgnoreSmallMaxHitsToggled;
@@ -88,7 +94,14 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		mainContent.add(buildTopPanel());
 		mainContent.add(weaponListPanel);
 
-		add(mainContent, BorderLayout.NORTH);
+		updatePanelWrapper = new JPanel(new BorderLayout());
+		updatePanelWrapper.setVisible(false);
+
+		JPanel root = new JPanel();
+		root.setLayout(new javax.swing.BoxLayout(root, javax.swing.BoxLayout.Y_AXIS));
+		root.add(updatePanelWrapper);
+		root.add(mainContent);
+		add(root, BorderLayout.NORTH);
 	}
 
 	private JPanel buildTopPanel()
@@ -102,6 +115,30 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		title.setAlignmentX(Component.LEFT_ALIGNMENT);
 		top.add(title);
 		top.add(Box.createVerticalStrut(4));
+
+		JLabel customSoundDirections = new JLabel("<html>Want a custom sfx?<br>" +
+				"1. Place <b>.wav</b> files in:</html>");
+		customSoundDirections.setFont(customSoundDirections.getFont().deriveFont(14f));
+		customSoundDirections.setAlignmentX(Component.LEFT_ALIGNMENT);
+		top.add(customSoundDirections);
+
+		JButton folderLink = new JButton("<html><u>.runelite/customweaponsfx/</u></html>");
+		folderLink.setFont(folderLink.getFont().deriveFont(14f));
+		folderLink.setBorderPainted(false);
+		folderLink.setContentAreaFilled(false);
+		folderLink.setFocusPainted(false);
+		folderLink.setForeground(Color.CYAN);
+		folderLink.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+		folderLink.setAlignmentX(Component.LEFT_ALIGNMENT);
+		folderLink.addActionListener(e -> LinkBrowser.open(CustomWeaponSfxPlugin.SOUNDS_DIR.toString()));
+		top.add(folderLink);
+
+		JLabel customSoundDirections2 = new JLabel("<html>2. Click Refresh Sounds<br>" +
+				"3. Click an Add method below and configure it</html>");
+		customSoundDirections2.setFont(customSoundDirections2.getFont().deriveFont(14f));
+		customSoundDirections2.setAlignmentX(Component.LEFT_ALIGNMENT);
+		top.add(customSoundDirections2);
+		top.add(Box.createVerticalStrut(8));
 
 		JPanel btnRow = new JPanel();
 		btnRow.setLayout(new javax.swing.BoxLayout(btnRow, javax.swing.BoxLayout.X_AXIS));
@@ -141,6 +178,10 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			if (confirm == JOptionPane.YES_OPTION) onReset.run();
 		});
 		resetRow.add(resetBtn);
+		resetRow.add(Box.createHorizontalStrut(4));
+		JButton refreshBtn = new JButton("Refresh Sounds");
+		refreshBtn.addActionListener(e -> onRefreshSounds.run());
+		resetRow.add(refreshBtn);
 
 		top.add(resetRow);
 		top.add(Box.createVerticalStrut(6));
@@ -172,6 +213,31 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		top.add(Box.createVerticalStrut(4));
 
 		return top;
+	}
+
+	public void showCorrectPanel(String savedVersion, String currentVersion, String patchNotes, Runnable onDismiss)
+	{
+		if (!currentVersion.isEmpty() && !currentVersion.equals(savedVersion))
+		{
+			updatePanelWrapper.removeAll();
+			updatePanelWrapper.add(new CustomWeaponSfxUpdatePanel(currentVersion, patchNotes, () ->
+			{
+				onDismiss.run();
+				updatePanelWrapper.setVisible(false);
+				mainContent.setVisible(true);
+				revalidate();
+				repaint();
+			}), BorderLayout.CENTER);
+			updatePanelWrapper.setVisible(true);
+			mainContent.setVisible(false);
+		}
+		else
+		{
+			updatePanelWrapper.setVisible(false);
+			mainContent.setVisible(true);
+		}
+		revalidate();
+		repaint();
 	}
 
 	public void resetToggles()
@@ -707,16 +773,12 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	{
 		if (configValue == null || configValue.isEmpty())
 			return "squeak" + BUILTIN_SUFFIX;
-		if (configValue.startsWith(BUNDLED_PREFIX))
-			return configValue.substring(BUNDLED_PREFIX.length()) + BUILTIN_SUFFIX;
 		return configValue;
 	}
 
 	private static String displayToConfig(String display)
 	{
-		if (display == null) return BUNDLED_PREFIX + "squeak";
-		if (display.endsWith(BUILTIN_SUFFIX))
-			return BUNDLED_PREFIX + display.substring(0, display.length() - BUILTIN_SUFFIX.length());
+		if (display == null) return "squeak" + BUILTIN_SUFFIX;
 		return display;
 	}
 }

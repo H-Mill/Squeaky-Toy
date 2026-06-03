@@ -24,6 +24,7 @@ import net.runelite.api.Client;
 import net.runelite.api.GameState;
 import net.runelite.api.EquipmentInventorySlot;
 import net.runelite.api.HitsplatID;
+import net.runelite.api.Prayer;
 import net.runelite.api.InventoryID;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
@@ -76,6 +77,9 @@ public class CustomWeaponSfxPlugin extends Plugin
 	private int pendingSpecItemId = -1;
 	private int pendingSpecTick = -1;
 
+	private boolean ignoreSmallMaxHits = true;
+	private boolean ignoreReceivedZeroWithPrayer = true;
+
 	// Hitsplats are batched per tick so multi-hit attacks are evaluated together.
 	private final Map<Integer, PendingAttack> pendingAttacks = new HashMap<>();
 	private int pendingAttackTick = -1;
@@ -93,7 +97,13 @@ public class CustomWeaponSfxPlugin extends Plugin
 		bundledSounds = scanBundledSounds();
 		availableSounds = new ArrayList<>();
 
-		panel = new CustomWeaponSfxPanel(configManager, itemManager, this::openWeaponSearch, this::addEquippedWeapon, this::removeWeapon, this::playSoundFile, this::resetAllData);
+		String ignoreVal = configManager.getConfiguration(CONFIG_GROUP, "ignoreSmallMaxHits");
+		ignoreSmallMaxHits = ignoreVal == null || Boolean.parseBoolean(ignoreVal);
+
+		String ignoreZeroVal = configManager.getConfiguration(CONFIG_GROUP, "ignoreReceivedZeroWithPrayer");
+		ignoreReceivedZeroWithPrayer = ignoreZeroVal == null || Boolean.parseBoolean(ignoreZeroVal);
+
+		panel = new CustomWeaponSfxPanel(configManager, itemManager, this::openWeaponSearch, this::addEquippedWeapon, this::removeWeapon, this::playSoundFile, this::resetAllData, this::onIgnoreSmallMaxHitsChanged, this::onIgnoreReceivedZeroWithPrayerChanged);
 
 		navButton = NavigationButton.builder()
 			.tooltip("Custom Weapon SFX")
@@ -168,7 +178,9 @@ public class CustomWeaponSfxPlugin extends Plugin
 				boolean allMax  = attack.isMaxList.stream().allMatch(b -> b);
 				boolean anyHit  = attack.amounts.stream().anyMatch(a -> a > 0);
 				boolean allZero = attack.amounts.stream().allMatch(a -> a == 0);
-				fireMatchingGroups(attack.groups, attack.wasSpec, anyHit, allZero, allMax);
+				int maxAmount   = attack.amounts.stream().mapToInt(Integer::intValue).max().orElse(0);
+				boolean suppressMax = ignoreSmallMaxHits && allMax && maxAmount <= 3;
+				fireMatchingGroups(attack.groups, attack.wasSpec, anyHit, allZero, allMax, suppressMax);
 				if (attack.wasSpec) specHitsplatSeen = true;
 			}
 			pendingAttacks.clear();
@@ -192,6 +204,8 @@ public class CustomWeaponSfxPlugin extends Plugin
 
 		if (actor == client.getLocalPlayer())
 		{
+			if (amount == 0 && ignoreReceivedZeroWithPrayer && isProtectionPrayerActive())
+				return;
 			buffer(RECEIVED_KEY, receivedGroups, false, amount, false, tick);
 			return;
 		}
@@ -240,6 +254,12 @@ public class CustomWeaponSfxPlugin extends Plugin
 
 		addDefaultGroup(receivedGroups, CustomWeaponSfxPanel.RECEIVED_GROUPS_PREFIX, EnumSet.of(Triggers.REGULAR_ZERO));
 
+		ignoreSmallMaxHits = true;
+		configManager.setConfiguration(CONFIG_GROUP, "ignoreSmallMaxHits", true);
+		ignoreReceivedZeroWithPrayer = true;
+		configManager.setConfiguration(CONFIG_GROUP, "ignoreReceivedZeroWithPrayer", true);
+		if (panel != null) panel.resetToggles();
+
 		rebuildPanel();
 	}
 
@@ -259,6 +279,25 @@ public class CustomWeaponSfxPlugin extends Plugin
 				configManager.unsetConfiguration(CONFIG_GROUP, gk + "_volume_" + j);
 			}
 		}
+	}
+
+	private void onIgnoreSmallMaxHitsChanged(boolean value)
+	{
+		ignoreSmallMaxHits = value;
+		configManager.setConfiguration(CONFIG_GROUP, "ignoreSmallMaxHits", value);
+	}
+
+	private void onIgnoreReceivedZeroWithPrayerChanged(boolean value)
+	{
+		ignoreReceivedZeroWithPrayer = value;
+		configManager.setConfiguration(CONFIG_GROUP, "ignoreReceivedZeroWithPrayer", value);
+	}
+
+	private boolean isProtectionPrayerActive()
+	{
+		return client.isPrayerActive(Prayer.PROTECT_FROM_MELEE)
+			|| client.isPrayerActive(Prayer.PROTECT_FROM_MISSILES)
+			|| client.isPrayerActive(Prayer.PROTECT_FROM_MAGIC);
 	}
 
 	private void buffer(int key, List<TriggerGroup> groups,
@@ -557,7 +596,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 	}
 
 	private void fireMatchingGroups(List<TriggerGroup> groups, boolean wasSpec,
-									boolean anyHit, boolean allZero, boolean allMax)
+									boolean anyHit, boolean allZero, boolean allMax, boolean suppressMax)
 	{
 		for (TriggerGroup group : groups)
 		{
@@ -567,7 +606,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 			boolean matches = false;
 			for (Triggers trigger : triggers)
 			{
-				if (matchesTrigger(trigger, wasSpec, anyHit, allZero, allMax))
+				if (matchesTrigger(trigger, wasSpec, anyHit, allZero, allMax, suppressMax))
 				{
 					matches = true;
 					break;
@@ -587,16 +626,16 @@ public class CustomWeaponSfxPlugin extends Plugin
 	}
 
 	private static boolean matchesTrigger(Triggers trigger, boolean wasSpec,
-										   boolean anyHit, boolean allZero, boolean allMax)
+										   boolean anyHit, boolean allZero, boolean allMax, boolean suppressMax)
 	{
 		switch (trigger)
 		{
 			case REGULAR_ZERO: return !wasSpec && allZero;
 			case REGULAR_HIT:  return !wasSpec && anyHit && !allMax;
-			case REGULAR_MAX:  return !wasSpec && allMax;
+			case REGULAR_MAX:  return !wasSpec && allMax && !suppressMax;
 			case SPECIAL_ZERO: return wasSpec && allZero;
 			case SPECIAL_HIT:  return wasSpec && anyHit && !allMax;
-			case SPECIAL_MAX:  return wasSpec && allMax;
+			case SPECIAL_MAX:  return wasSpec && allMax && !suppressMax;
 			case ALL:          return anyHit;
 			default:           return false;
 		}

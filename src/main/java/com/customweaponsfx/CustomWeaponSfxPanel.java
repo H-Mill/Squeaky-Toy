@@ -49,6 +49,11 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	private final Consumer<Integer> onRemoveWeapon;
 	private final BiConsumer<String, Integer> onTestSound;
 	private final Runnable onReset;
+	private final Consumer<Boolean> onIgnoreSmallMaxHitsToggled;
+	private final Consumer<Boolean> onIgnoreReceivedZeroWithPrayerToggled;
+
+	private JCheckBox ignoreSmallMaxCheckBox;
+	private JCheckBox ignoreZeroPrayerCheckBox;
 
 	private final JPanel weaponListPanel;
 	private final JPanel mainContent;
@@ -58,7 +63,9 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		Runnable onAddEquipped,
 		Consumer<Integer> onRemoveWeapon,
 		BiConsumer<String, Integer> onTestSound,
-		Runnable onReset)
+		Runnable onReset,
+		Consumer<Boolean> onIgnoreSmallMaxHitsToggled,
+		Consumer<Boolean> onIgnoreReceivedZeroWithPrayerToggled)
 	{
 		this.configManager = configManager;
 		this.itemManager = itemManager;
@@ -67,6 +74,8 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		this.onRemoveWeapon = onRemoveWeapon;
 		this.onTestSound = onTestSound;
 		this.onReset = onReset;
+		this.onIgnoreSmallMaxHitsToggled = onIgnoreSmallMaxHitsToggled;
+		this.onIgnoreReceivedZeroWithPrayerToggled = onIgnoreReceivedZeroWithPrayerToggled;
 
 		setLayout(new BorderLayout());
 		setBorder(new EmptyBorder(10, 10, 10, 10));
@@ -134,9 +143,44 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		resetRow.add(resetBtn);
 
 		top.add(resetRow);
-		top.add(Box.createVerticalStrut(10));
+		top.add(Box.createVerticalStrut(6));
+
+		String ignoreVal = configManager.getConfiguration(CustomWeaponSfxPlugin.CONFIG_GROUP, "ignoreSmallMaxHits");
+		boolean ignoreSmallMaxHits = ignoreVal == null || Boolean.parseBoolean(ignoreVal);
+
+		ignoreSmallMaxCheckBox = new JCheckBox("Ignore max hits ≤ 3", ignoreSmallMaxHits);
+		ignoreSmallMaxCheckBox.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		ignoreSmallMaxCheckBox.setToolTipText("<html>When enabled, max hit SFX will not play if the hit<br>"
+			+ "damage is 3 or less. Prevents thrall max hits from<br>"
+			+ "triggering max hit sounds.</html>");
+		ignoreSmallMaxCheckBox.setAlignmentX(Component.LEFT_ALIGNMENT);
+		ignoreSmallMaxCheckBox.addActionListener(e -> onIgnoreSmallMaxHitsToggled.accept(ignoreSmallMaxCheckBox.isSelected()));
+		top.add(ignoreSmallMaxCheckBox);
+		top.add(Box.createVerticalStrut(2));
+
+		String ignoreZeroVal = configManager.getConfiguration(CustomWeaponSfxPlugin.CONFIG_GROUP, "ignoreReceivedZeroWithPrayer");
+		boolean ignoreReceivedZeroWithPrayer = ignoreZeroVal == null || Boolean.parseBoolean(ignoreZeroVal);
+
+		ignoreZeroPrayerCheckBox = new JCheckBox("Ignore zeroes with prayer", ignoreReceivedZeroWithPrayer);
+		ignoreZeroPrayerCheckBox.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		ignoreZeroPrayerCheckBox.setToolTipText("<html>When enabled, the Received Attacks 'Regular zero'<br>"
+			+ "trigger will not fire while Protect from Melee,<br>"
+			+ "Protect from Ranged, or Protect from Magic is active.</html>");
+		ignoreZeroPrayerCheckBox.setAlignmentX(Component.LEFT_ALIGNMENT);
+		ignoreZeroPrayerCheckBox.addActionListener(e -> onIgnoreReceivedZeroWithPrayerToggled.accept(ignoreZeroPrayerCheckBox.isSelected()));
+		top.add(ignoreZeroPrayerCheckBox);
+		top.add(Box.createVerticalStrut(4));
 
 		return top;
+	}
+
+	public void resetToggles()
+	{
+		SwingUtilities.invokeLater(() ->
+		{
+			if (ignoreSmallMaxCheckBox != null) ignoreSmallMaxCheckBox.setSelected(true);
+			if (ignoreZeroPrayerCheckBox != null) ignoreZeroPrayerCheckBox.setSelected(true);
+		});
 	}
 
 	public void rebuild(List<WeaponEntry> weapons, List<String> availableSounds,

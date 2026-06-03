@@ -56,12 +56,20 @@ Each weapon row has a checkbox in its header. Unchecking it disables that weapon
 2. Click **Refresh Sounds** in the panel.
 3. Your files will appear in the sound dropdowns alongside the built-in sounds.
 
+## Global Toggles
+
+Two toggles appear at the top of the panel and apply globally:
+
+**Ignore max hits ≤ 3** — when enabled, max hit SFX will not play if the hit deals 3 or fewer damage. This prevents thrall max hits from triggering your *Regular/Special attack max* sounds. Enabled by default.
+
+**Ignore zeroes with prayer** — when enabled, the Received Attacks *Regular attack zero* trigger will not fire while Protect from Melee, Protect from Ranged, or Protect from Magic is active. Useful if you don't want a "blocked" sound every time a prayer absorbs a hit. Enabled by default.
+
 ## Resetting
 
 Click **Reset All Data** to clear all weapons and sound groups and restore defaults. A confirmation dialog will appear first.
 
 ## Known Issues
 
-**Thrall hits** — if you have a thrall active and a *Regular attack zero* or *All attacks* trigger set, thrall zeros and damage will cause the sound to play. Thrall hits are indistinguishable from player hits in the data provided by the game client, so this cannot be filtered out.
+**Thrall hits** — if you have a thrall active and a *Regular attack zero* or *All attacks* trigger set, thrall zeros and damage will cause the sound to play. Thrall hits are indistinguishable from player hits in the data provided by the game client, so this cannot be fully filtered out. The **Ignore max hits ≤ 3** toggle mitigates thrall max hits specifically.
 
 **Splashing** - Your players splashing, like thrall zeros, cannot be distinguished from other players splashes, so I opted to not include them in the plugin (everyones splashes around you would cause a SFX).

@@ -7,6 +7,7 @@ Play custom sound effects when you attack or get hit in Old School RuneScape.
 - Assign sounds to specific weapons
 - Play different sounds for misses, regular hits, and max hits — on both regular and special attacks
 - Dedicated **Player kill** trigger that fires when your attack kills another player
+- Dedicated **Player death** trigger (Received Attacks) that fires when your character dies
 - Separate sounds for when *you* take damage (Received Attacks)
 - Multiple sound groups per weapon, each with its own triggers, sounds, volume, and activation chance
 - Multiple sounds per group — one is picked at random each time the group fires
@@ -47,7 +48,7 @@ Click **+ Add Sound** inside a group to add more sounds to the random pool.
 | All attacks | Any attack that deals damage |
 | Player kill | Your attack kills another player |
 
-The **Received Attacks** section supports a subset: Regular attack zero, Regular attack hit, and All attacks.
+The **Received Attacks** section supports a subset: Regular attack zero, Regular attack hit, All attacks, and Player death.
 
 ### Player kill trigger
 
@@ -62,6 +63,12 @@ The **Player kill** trigger fires when your hit reduces another player's health 
 - `Player kill` alone → fires on any killing blow, regardless of hit type
 
 This lets you set up a generic kill sound alongside a more specific one for, say, a one-shot special — only the most specific matching group fires.
+
+### Player death trigger
+
+The **Player death** trigger is available only in the **Received Attacks** section. It fires when your character dies, regardless of what killed you (another player, an NPC, poison, etc.).
+
+It fires independently of the hitsplat system — a death from poison or a delayed hit will still trigger it. It cannot be added to weapon sound groups.
 
 ## Enabling and Disabling Weapons
 

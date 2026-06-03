@@ -30,6 +30,7 @@ import net.runelite.api.Skill;
 import net.runelite.api.InventoryID;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
+import net.runelite.api.events.ActorDeath;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.HitsplatApplied;
 import net.runelite.api.events.VarbitChanged;
@@ -315,6 +316,17 @@ public class CustomWeaponSfxPlugin extends Plugin
 	{
 		ignoreZeroWhileThrallActive = value;
 		configManager.setConfiguration(CONFIG_GROUP, "ignoreZeroWhileThrallActive", value);
+	}
+
+	@Subscribe
+	public void onActorDeath(ActorDeath event)
+	{
+		if (event.getActor() != client.getLocalPlayer()) return;
+		for (TriggerGroup group : receivedGroups)
+		{
+			if (!group.getTriggers().contains(Triggers.PLAYER_DEATH)) continue;
+			fireGroup(group);
+		}
 	}
 
 	@Subscribe
@@ -643,6 +655,8 @@ public class CustomWeaponSfxPlugin extends Plugin
 		{
 			Set<Triggers> triggers = group.getTriggers();
 			if (triggers.isEmpty()) continue;
+			// PLAYER_DEATH groups are fired exclusively from onActorDeath, not from the hitsplat path.
+			if (triggers.contains(Triggers.PLAYER_DEATH)) continue;
 
 			boolean groupHasKill = triggers.contains(Triggers.KILL);
 			// Kill groups only fire on kills; when kill groups exist, non-kill groups are suppressed.
@@ -680,16 +694,21 @@ public class CustomWeaponSfxPlugin extends Plugin
 				}
 			}
 			if (!matches) continue;
-			int chance = group.getChance();
-			if (chance <= 0) continue;
-			if (chance < 100 && ThreadLocalRandom.current().nextInt(100) >= chance) continue;
-			List<SoundEntry> sounds = group.getSounds();
-			if (sounds.isEmpty()) continue;
-			SoundEntry se = sounds.size() == 1
-				? sounds.get(0)
-				: sounds.get(ThreadLocalRandom.current().nextInt(sounds.size()));
-			playSoundFile(se.getSoundFile(), se.getVolume());
+			fireGroup(group);
 		}
+	}
+
+	private void fireGroup(TriggerGroup group)
+	{
+		int chance = group.getChance();
+		if (chance <= 0) return;
+		if (chance < 100 && ThreadLocalRandom.current().nextInt(100) >= chance) return;
+		List<SoundEntry> sounds = group.getSounds();
+		if (sounds.isEmpty()) return;
+		SoundEntry se = sounds.size() == 1
+			? sounds.get(0)
+			: sounds.get(ThreadLocalRandom.current().nextInt(sounds.size()));
+		playSoundFile(se.getSoundFile(), se.getVolume());
 	}
 
 	private static boolean matchesTrigger(Triggers trigger, boolean wasSpec,
@@ -763,7 +782,8 @@ public class CustomWeaponSfxPlugin extends Plugin
 	{
 		return new ArrayList<>(Arrays.asList("bonk", "punch", "shot",
 				"squeak", "oh-baby-a-triple", "emotional-damage",
-				"minecraft-hit", "minecraft-oof", "thats-a-lot-of-damage"));
+				"minecraft-hit", "minecraft-oof", "thats-a-lot-of-damage",
+				"gta-wasted","mario-death","okay"));
 	}
 
 	private static float volumeToGain(int volume)

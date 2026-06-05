@@ -874,7 +874,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 		return new ArrayList<>(Arrays.asList("bonk", "punch", "shot",
 				"squeak", "oh-baby-a-triple", "emotional-damage",
 				"minecraft-hit", "minecraft-oof", "thats-a-lot-of-damage",
-				"gta-wasted","mario-death","okay", "waza"));
+				"gta-wasted","mario-death","okay"));
 	}
 
 	private static float volumeToGain(int volume)

@@ -36,6 +36,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	private static final String BUILTIN_SUFFIX = " (built-in)";
 
 	static final String RECEIVED_GROUPS_PREFIX = "defaultReceived";
+	static final String GLOBAL_WEAPON_GROUPS_PREFIX = "globalWeapon";
 
 
 	private List<String> bundledSounds = new ArrayList<>();
@@ -52,6 +53,8 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	private final Consumer<Boolean> onIgnoreSmallMaxHitsToggled;
 	private final Consumer<Boolean> onIgnoreReceivedZeroWithPrayerToggled;
 	private final Consumer<Boolean> onIgnoreZeroWhileThrallActiveToggled;
+	private final Consumer<Boolean> onGlobalWeaponEnabledToggled;
+	private final Consumer<Boolean> onReceivedEnabledToggled;
 
 	private JCheckBox ignoreSmallMaxCheckBox;
 	private JCheckBox ignoreZeroPrayerCheckBox;
@@ -68,7 +71,9 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		Runnable onReset,
 		Consumer<Boolean> onIgnoreSmallMaxHitsToggled,
 		Consumer<Boolean> onIgnoreReceivedZeroWithPrayerToggled,
-		Consumer<Boolean> onIgnoreZeroWhileThrallActiveToggled)
+		Consumer<Boolean> onIgnoreZeroWhileThrallActiveToggled,
+		Consumer<Boolean> onGlobalWeaponEnabledToggled,
+		Consumer<Boolean> onReceivedEnabledToggled)
 	{
 		this.configManager = configManager;
 		this.itemManager = itemManager;
@@ -80,6 +85,8 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		this.onIgnoreSmallMaxHitsToggled = onIgnoreSmallMaxHitsToggled;
 		this.onIgnoreReceivedZeroWithPrayerToggled = onIgnoreReceivedZeroWithPrayerToggled;
 		this.onIgnoreZeroWhileThrallActiveToggled = onIgnoreZeroWhileThrallActiveToggled;
+		this.onGlobalWeaponEnabledToggled = onGlobalWeaponEnabledToggled;
+		this.onReceivedEnabledToggled = onReceivedEnabledToggled;
 
 		setLayout(new BorderLayout());
 		setBorder(new EmptyBorder(10, 10, 10, 10));
@@ -148,46 +155,95 @@ public class CustomWeaponSfxPanel extends PluginPanel
 
 		top.add(resetRow);
 		top.add(Box.createVerticalStrut(6));
+		top.add(buildTogglesSection());
+		top.add(Box.createVerticalStrut(4));
+
+		return top;
+	}
+
+	private JPanel buildTogglesSection()
+	{
+		JPanel section = new JPanel();
+		section.setLayout(new javax.swing.BoxLayout(section, javax.swing.BoxLayout.Y_AXIS));
+		section.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		section.setBorder(BorderFactory.createCompoundBorder(
+			BorderFactory.createLineBorder(ColorScheme.MEDIUM_GRAY_COLOR),
+			new EmptyBorder(4, 6, 4, 6)
+		));
+		section.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+		JPanel headerRow = new JPanel(new BorderLayout(6, 0));
+		headerRow.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		headerRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+		JButton collapseBtn = new JButton("▶");
+		collapseBtn.setMargin(new java.awt.Insets(2, 4, 2, 4));
+		collapseBtn.setToolTipText("Expand");
+		headerRow.add(collapseBtn, BorderLayout.WEST);
+
+		JLabel headerLabel = new JLabel("Options");
+		headerLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		headerLabel.setFont(headerLabel.getFont().deriveFont(Font.BOLD, 11f));
+		headerRow.add(headerLabel, BorderLayout.CENTER);
+
+		section.add(headerRow);
+
+		JPanel content = new JPanel();
+		content.setLayout(new javax.swing.BoxLayout(content, javax.swing.BoxLayout.Y_AXIS));
+		content.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		content.setAlignmentX(Component.LEFT_ALIGNMENT);
+		content.setVisible(false);
+
+		content.add(Box.createVerticalStrut(4));
 
 		String ignoreVal = configManager.getConfiguration(CustomWeaponSfxPlugin.CONFIG_GROUP, "ignoreSmallMaxHits");
 		boolean ignoreSmallMaxHits = ignoreVal == null || Boolean.parseBoolean(ignoreVal);
-
 		ignoreSmallMaxCheckBox = new JCheckBox("Ignore max hits ≤ 3", ignoreSmallMaxHits);
 		ignoreSmallMaxCheckBox.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		ignoreSmallMaxCheckBox.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		ignoreSmallMaxCheckBox.setToolTipText("<html>When enabled, max hit SFX will not play if the hit<br>"
 			+ "damage is 3 or less. Prevents thrall max hits from<br>"
 			+ "triggering max hit sounds.</html>");
 		ignoreSmallMaxCheckBox.setAlignmentX(Component.LEFT_ALIGNMENT);
 		ignoreSmallMaxCheckBox.addActionListener(e -> onIgnoreSmallMaxHitsToggled.accept(ignoreSmallMaxCheckBox.isSelected()));
-		top.add(ignoreSmallMaxCheckBox);
-		top.add(Box.createVerticalStrut(2));
+		content.add(ignoreSmallMaxCheckBox);
 
 		String ignoreZeroVal = configManager.getConfiguration(CustomWeaponSfxPlugin.CONFIG_GROUP, "ignoreReceivedZeroWithPrayer");
 		boolean ignoreReceivedZeroWithPrayer = ignoreZeroVal == null || Boolean.parseBoolean(ignoreZeroVal);
-
 		ignoreZeroPrayerCheckBox = new JCheckBox("Ignore zeroes with prayer", ignoreReceivedZeroWithPrayer);
 		ignoreZeroPrayerCheckBox.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		ignoreZeroPrayerCheckBox.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		ignoreZeroPrayerCheckBox.setToolTipText("<html>When enabled, the Received Attacks 'Regular zero'<br>"
 			+ "trigger will not fire while Protect from Melee,<br>"
 			+ "Protect from Ranged, or Protect from Magic is active.</html>");
 		ignoreZeroPrayerCheckBox.setAlignmentX(Component.LEFT_ALIGNMENT);
 		ignoreZeroPrayerCheckBox.addActionListener(e -> onIgnoreReceivedZeroWithPrayerToggled.accept(ignoreZeroPrayerCheckBox.isSelected()));
-		top.add(ignoreZeroPrayerCheckBox);
-		top.add(Box.createVerticalStrut(2));
+		content.add(ignoreZeroPrayerCheckBox);
 
 		String ignoreThrallZeroVal = configManager.getConfiguration(CustomWeaponSfxPlugin.CONFIG_GROUP, "ignoreZeroWhileThrallActive");
 		boolean ignoreZeroWhileThrallActive = ignoreThrallZeroVal == null || Boolean.parseBoolean(ignoreThrallZeroVal);
-
 		ignoreZeroThrallCheckBox = new JCheckBox("Ignore zeroes with thrall", ignoreZeroWhileThrallActive);
 		ignoreZeroThrallCheckBox.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		ignoreZeroThrallCheckBox.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		ignoreZeroThrallCheckBox.setToolTipText("<html>When enabled, zero-damage triggers will not fire<br>"
 			+ "while a thrall is active.</html>");
 		ignoreZeroThrallCheckBox.setAlignmentX(Component.LEFT_ALIGNMENT);
 		ignoreZeroThrallCheckBox.addActionListener(e -> onIgnoreZeroWhileThrallActiveToggled.accept(ignoreZeroThrallCheckBox.isSelected()));
-		top.add(ignoreZeroThrallCheckBox);
-		top.add(Box.createVerticalStrut(4));
+		content.add(ignoreZeroThrallCheckBox);
 
-		return top;
+		section.add(content);
+
+		collapseBtn.addActionListener(e ->
+		{
+			boolean nowVisible = content.isVisible();
+			content.setVisible(!nowVisible);
+			collapseBtn.setText(nowVisible ? "▶" : "▼");
+			collapseBtn.setToolTipText(nowVisible ? "Expand" : "Minimize");
+			section.revalidate();
+			section.repaint();
+		});
+
+		return section;
 	}
 
 	public void resetToggles()
@@ -201,7 +257,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	}
 
 	public void rebuild(List<WeaponEntry> weapons, List<String> availableSounds,
-		List<String> bundledSounds, List<TriggerGroup> receivedGroups)
+		List<String> bundledSounds, List<TriggerGroup> receivedGroups, List<TriggerGroup> globalWeaponGroups)
 	{
 		this.bundledSounds = bundledSounds;
 		SwingUtilities.invokeLater(() ->
@@ -210,7 +266,12 @@ public class CustomWeaponSfxPanel extends PluginPanel
 
 			weaponListPanel.add(buildDefaultRowGroups(
 				"Received Attacks", RECEIVED_GROUPS_PREFIX, receivedGroups, availableSounds,
-				EnumSet.of(Triggers.REGULAR_ZERO, Triggers.REGULAR_HIT, Triggers.ALL, Triggers.PLAYER_DEATH)));
+				EnumSet.of(Triggers.REGULAR_ZERO, Triggers.REGULAR_HIT, Triggers.ALL, Triggers.PLAYER_DEATH), onReceivedEnabledToggled));
+			weaponListPanel.add(Box.createVerticalStrut(4));
+
+			weaponListPanel.add(buildDefaultRowGroups(
+				"Global (All Weapons)", GLOBAL_WEAPON_GROUPS_PREFIX, globalWeaponGroups, availableSounds,
+				EnumSet.complementOf(EnumSet.of(Triggers.REGULAR_HIT, Triggers.PLAYER_DEATH)), onGlobalWeaponEnabledToggled));
 			weaponListPanel.add(Box.createVerticalStrut(4));
 
 
@@ -226,7 +287,8 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	}
 
 	private JPanel buildDefaultRowGroups(String label, String prefix,
-		List<TriggerGroup> groups, List<String> availableSounds, Set<Triggers> visibleTriggers)
+		List<TriggerGroup> groups, List<String> availableSounds, Set<Triggers> visibleTriggers,
+		Consumer<Boolean> onEnabledToggled)
 	{
 		boolean collapsed = !expandedDefaults.contains(prefix);
 
@@ -251,6 +313,18 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		nameLabel.setForeground(ColorScheme.BRAND_ORANGE);
 		nameLabel.setFont(nameLabel.getFont().deriveFont(Font.BOLD, 12f));
 		headerRow.add(nameLabel, BorderLayout.CENTER);
+
+		if (onEnabledToggled != null)
+		{
+			String enabledVal = configManager.getConfiguration(CustomWeaponSfxPlugin.CONFIG_GROUP, prefix + "_enabled");
+			boolean enabled = enabledVal == null || Boolean.parseBoolean(enabledVal);
+			JCheckBox enabledBox = new JCheckBox();
+			enabledBox.setSelected(enabled);
+			enabledBox.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+			enabledBox.setToolTipText("Enable or disable this section");
+			enabledBox.addActionListener(e -> onEnabledToggled.accept(enabledBox.isSelected()));
+			headerRow.add(enabledBox, BorderLayout.EAST);
+		}
 
 		panel.add(headerRow);
 
@@ -433,28 +507,25 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			groupLabel.setFont(groupLabel.getFont().deriveFont(Font.BOLD, 11f));
 			groupHeader.add(groupLabel, BorderLayout.WEST);
 
-			if (groups.size() > 1)
+			JButton removeGroupBtn = new JButton("✕");
+			removeGroupBtn.setMargin(new java.awt.Insets(2, 5, 2, 5));
+			removeGroupBtn.setForeground(Color.RED);
+			removeGroupBtn.setToolTipText("Remove sound group");
+			removeGroupBtn.addActionListener(e ->
 			{
-				JButton removeGroupBtn = new JButton("✕");
-				removeGroupBtn.setMargin(new java.awt.Insets(2, 5, 2, 5));
-				removeGroupBtn.setForeground(Color.RED);
-				removeGroupBtn.setToolTipText("Remove sound group");
-				removeGroupBtn.addActionListener(e ->
-				{
-					int confirm = JOptionPane.showConfirmDialog(
-						this,
-						"Remove Sound Group " + (idx + 1) + "?",
-						"Remove Sound Group",
-						JOptionPane.YES_NO_OPTION,
-						JOptionPane.WARNING_MESSAGE
-					);
-					if (confirm != JOptionPane.YES_OPTION) return;
-					groups.remove(idx);
-					onSave.run();
-					rebuildGroupsSection(holder, groups, availableSounds, onSave, visibleTriggers);
-				});
-				groupHeader.add(removeGroupBtn, BorderLayout.EAST);
-			}
+				int confirm = JOptionPane.showConfirmDialog(
+					this,
+					"Remove Sound Group " + (idx + 1) + "?",
+					"Remove Sound Group",
+					JOptionPane.YES_NO_OPTION,
+					JOptionPane.WARNING_MESSAGE
+				);
+				if (confirm != JOptionPane.YES_OPTION) return;
+				groups.remove(idx);
+				onSave.run();
+				rebuildGroupsSection(holder, groups, availableSounds, onSave, visibleTriggers);
+			});
+			groupHeader.add(removeGroupBtn, BorderLayout.EAST);
 
 			JPanel soundsHolder = new JPanel();
 			soundsHolder.setLayout(new javax.swing.BoxLayout(soundsHolder, javax.swing.BoxLayout.Y_AXIS));

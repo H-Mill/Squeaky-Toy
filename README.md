@@ -9,10 +9,11 @@ Play custom sound effects when you attack or get hit in Old School RuneScape.
 - Dedicated **Player kill** trigger that fires when your attack kills another player
 - Dedicated **Player death** trigger (Received Attacks) that fires when your character dies
 - Separate sounds for when *you* take damage (Received Attacks)
-- Multiple sound groups per weapon, each with its own triggers, sounds, volume, and activation chance
+- **Global (All Weapons)** fallback section — plays sounds for any weapon that doesn't have its own configuration for a given trigger
+- Multiple sound groups per weapon or section, each with its own triggers, sounds, volume, and activation chance
 - Multiple sounds per group — one is picked at random each time the group fires
 - Per-group activation chance (0–100%) for randomized playback
-- Enable or disable individual weapons without losing their configuration
+- Enable or disable individual weapons and sections without losing their configuration
 - Use built-in sounds or drop in your own `.wav` files
 - Per-sound volume control and in-panel preview
 
@@ -22,19 +23,20 @@ Play custom sound effects when you attack or get hit in Old School RuneScape.
 2. Add a weapon — click **Add (Equipped)** while holding a weapon, or click **Add (Search)** to find one by name (requires being logged in).
 3. Expand the weapon and configure its sound group(s).
 4. To play a sound when you take damage, expand the **Received Attacks** section at the top.
+5. To play a sound for any weapon without its own configuration, expand the **Global (All Weapons)** section.
 
 ## Sound Groups
 
-Each weapon (and the Received Attacks section) contains one or more **sound groups**. A sound group fires when its selected triggers match the outcome of an attack (see [Triggers](#triggers) for exact matching rules).
+Each weapon and section contains one or more **sound groups**. A sound group fires when its selected triggers match the outcome of an attack (see [Triggers](#triggers) for exact matching rules).
 
-Click **+ Add Sound Group** inside an expanded weapon to add another group. Each group has:
+Click **+ Add Sound Group** inside an expanded weapon or section to add another group. Each group has:
 
 - **Chance** — probability the group plays when its trigger fires (100% = always, 0% = never). Useful for adding occasional variation.
 - **Sound(s)** — one or more sound files; if multiple are added, one is chosen at random each time the group fires. Click **▶** to preview a sound.
 - **Volume** — playback volume per sound (0–100).
 - **Triggers** — which hit outcomes cause this group to fire (see below).
 
-Click **+ Add Sound** inside a group to add more sounds to the random pool.
+Click **+ Add Sound** inside a group to add more sounds to the random pool. Sound groups can be removed with the **✕** button on the group header, including the last remaining one.
 
 ## Triggers
 
@@ -70,9 +72,21 @@ The **Player death** trigger is available only in the **Received Attacks** secti
 
 It fires independently of the hitsplat system — a death from poison or a delayed hit will still trigger it. It cannot be added to weapon sound groups.
 
-## Enabling and Disabling Weapons
+## Global (All Weapons)
 
-Each weapon row has a checkbox in its header. Unchecking it disables that weapon — its sound groups will not fire — without removing any configuration. Check it again to re-enable.
+The **Global (All Weapons)** section acts as a fallback for any weapon hit that is not handled by a weapon-specific sound group.
+
+When your attack lands, the plugin checks whether the weapon you used has a group configured for that trigger. If it does, the weapon-specific group fires and the global section is suppressed for that trigger. If it does not, the global group fires instead.
+
+This lets you set a single default "on hit" sound that plays for every weapon, then override it selectively for specific weapons.
+
+**Example:** configure a generic hit sound in Global with the *All attacks* trigger. Add your scythe with only a *Regular attack max* group. Scythe max hits play the scythe sound; every other hit type on the scythe, and all hits with any other weapon, play the global sound.
+
+The global section only fires for outgoing hits — it is not affected by incoming damage.
+
+## Enabling and Disabling Weapons and Sections
+
+Each weapon row, the **Received Attacks** section, and the **Global (All Weapons)** section each have a checkbox in their header. Unchecking it disables that weapon or section — its sound groups will not fire — without removing any configuration. Check it again to re-enable.
 
 ## Using Your Own Sounds
 
@@ -80,13 +94,15 @@ Each weapon row has a checkbox in its header. Unchecking it disables that weapon
 2. Click **Refresh Sounds** in the panel.
 3. Your files will appear in the sound dropdowns alongside the built-in sounds.
 
-## Global Toggles
+## Options
 
-Two toggles appear at the top of the panel and apply globally:
+The **Options** section at the top of the panel (collapsed by default) contains three global toggles:
 
 **Ignore max hits ≤ 3** — when enabled, max hit SFX will not play if the hit deals 3 or fewer damage. This prevents thrall max hits from triggering your *Regular/Special attack max* sounds. Enabled by default.
 
 **Ignore zeroes with prayer** — when enabled, the Received Attacks *Regular attack zero* trigger will not fire while Protect from Melee, Protect from Ranged, or Protect from Magic is active. Useful if you don't want a "blocked" sound every time a prayer absorbs a hit. Enabled by default.
+
+**Ignore zeroes with thrall** — when enabled, zero-damage triggers will not fire while a thrall is active. Prevents thrall misses from triggering zero-damage sounds. Enabled by default.
 
 ## Resetting
 
@@ -94,6 +110,6 @@ Click **Reset All Data** to clear all weapons and sound groups and restore defau
 
 ## Known Issues
 
-**Thrall hits** — if you have a thrall active and a *Regular attack zero* or *All attacks* trigger set, thrall zeros and damage will cause the sound to play. Thrall hits are indistinguishable from player hits in the data provided by the game client, so this cannot be fully filtered out. The **Ignore max hits ≤ 3** toggle mitigates thrall max hits specifically.
+**Thrall hits** — if you have a thrall active and a *Regular attack zero* or *All attacks* trigger set, thrall zeros and damage will cause the sound to play. Thrall hits are indistinguishable from player hits in the data provided by the game client, so this cannot be fully filtered out. The **Ignore max hits ≤ 3** and **Ignore zeroes with thrall** toggles mitigate thrall hits specifically.
 
 **Splashing** - Your players splashing, like thrall zeros, cannot be distinguished from other players splashes, so I opted to not include them in the plugin (everyones splashes around you would cause a SFX).

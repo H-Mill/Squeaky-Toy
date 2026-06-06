@@ -75,6 +75,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 
 	private final List<WeaponEntry> weaponEntries = new CopyOnWriteArrayList<>();
 	private final List<TriggerGroup> receivedGroups = new CopyOnWriteArrayList<>();
+	private final List<TriggerGroup> globalWeaponGroups = new CopyOnWriteArrayList<>();
 	private List<String> bundledSounds = new ArrayList<>();
 	private List<String> availableSounds = new ArrayList<>();
 
@@ -85,6 +86,8 @@ public class CustomWeaponSfxPlugin extends Plugin
 	private boolean ignoreSmallMaxHits = true;
 	private boolean ignoreReceivedZeroWithPrayer = true;
 	private boolean ignoreZeroWhileThrallActive = true;
+	private boolean globalWeaponEnabled = true;
+	private boolean receivedEnabled = true;
 	private int thrallTicksRemaining = 0;
 
 	// Hitsplats are batched per tick so multi-hit attacks are evaluated together.
@@ -100,7 +103,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 
 		loadWeaponEntries();
 		loadDefaultGroups(receivedGroups, CustomWeaponSfxPanel.RECEIVED_GROUPS_PREFIX);
-		seedFirstRunGroups(receivedGroups, CustomWeaponSfxPanel.RECEIVED_GROUPS_PREFIX, EnumSet.of(Triggers.REGULAR_ZERO));
+		loadDefaultGroups(globalWeaponGroups, CustomWeaponSfxPanel.GLOBAL_WEAPON_GROUPS_PREFIX);
 		bundledSounds = scanBundledSounds();
 		availableSounds = new ArrayList<>();
 
@@ -113,7 +116,13 @@ public class CustomWeaponSfxPlugin extends Plugin
 		String ignoreThrallZeroVal = configManager.getConfiguration(CONFIG_GROUP, "ignoreZeroWhileThrallActive");
 		ignoreZeroWhileThrallActive = ignoreThrallZeroVal == null || Boolean.parseBoolean(ignoreThrallZeroVal);
 
-		panel = new CustomWeaponSfxPanel(configManager, itemManager, this::openWeaponSearch, this::addEquippedWeapon, this::removeWeapon, this::playSoundFile, this::resetAllData, this::onIgnoreSmallMaxHitsChanged, this::onIgnoreReceivedZeroWithPrayerChanged, this::onIgnoreZeroWhileThrallActiveChanged);
+		String globalEnabledVal = configManager.getConfiguration(CONFIG_GROUP, CustomWeaponSfxPanel.GLOBAL_WEAPON_GROUPS_PREFIX + "_enabled");
+		globalWeaponEnabled = globalEnabledVal == null || Boolean.parseBoolean(globalEnabledVal);
+
+		String receivedEnabledVal = configManager.getConfiguration(CONFIG_GROUP, CustomWeaponSfxPanel.RECEIVED_GROUPS_PREFIX + "_enabled");
+		receivedEnabled = receivedEnabledVal == null || Boolean.parseBoolean(receivedEnabledVal);
+
+		panel = new CustomWeaponSfxPanel(configManager, itemManager, this::openWeaponSearch, this::addEquippedWeapon, this::removeWeapon, this::playSoundFile, this::resetAllData, this::onIgnoreSmallMaxHitsChanged, this::onIgnoreReceivedZeroWithPrayerChanged, this::onIgnoreZeroWhileThrallActiveChanged, this::onGlobalWeaponEnabledChanged, this::onReceivedEnabledChanged);
 
 		navButton = NavigationButton.builder()
 			.tooltip("Custom Weapon SFX")
@@ -123,7 +132,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 			.build();
 		clientToolbar.addNavigation(navButton);
 
-		panel.rebuild(new ArrayList<>(weaponEntries), availableSounds, bundledSounds, receivedGroups);
+		panel.rebuild(new ArrayList<>(weaponEntries), availableSounds, bundledSounds, receivedGroups, globalWeaponGroups);
 
 		clientThread.invoke(() -> lastSpecPct = client.getVarpValue(VARP_SPEC_PERCENT));
 
@@ -141,6 +150,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 		panel = null;
 
 		receivedGroups.clear();
+		globalWeaponGroups.clear();
 		bundledSounds.clear();
 
 		lastSpecPct = -1;
@@ -197,7 +207,19 @@ public class CustomWeaponSfxPlugin extends Plugin
 				boolean isKill = attack.actors.stream()
 					.filter(a -> a instanceof Player && a != client.getLocalPlayer())
 					.anyMatch(a -> ((Player) a).getHealthRatio() == 0);
-				fireMatchingGroups(attack.groups, attack.wasSpec, anyHit, allZero, allMax, suppressMax, suppressZero, isKill);
+				fireMatchingGroups(attack.groups, attack.wasSpec, anyHit, allZero, allMax, suppressMax, suppressZero, isKill,
+					EnumSet.noneOf(Triggers.class));
+
+				if (globalWeaponEnabled && attack.groups != receivedGroups)
+				{
+					Set<Triggers> weaponCoveredTriggers = attack.groups.stream()
+						.filter(g -> !g.getTriggers().isEmpty())
+						.flatMap(g -> g.getTriggers().stream())
+						.collect(Collectors.toCollection(() -> EnumSet.noneOf(Triggers.class)));
+					fireMatchingGroups(globalWeaponGroups, attack.wasSpec, anyHit, allZero, allMax, suppressMax, suppressZero, isKill,
+						weaponCoveredTriggers);
+				}
+
 				if (attack.wasSpec) specHitsplatSeen = true;
 			}
 			pendingAttacks.clear();
@@ -221,6 +243,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 
 		if (actor == client.getLocalPlayer())
 		{
+			if (!receivedEnabled) return;
 			if (amount == 0 && ignoreReceivedZeroWithPrayer && isProtectionPrayerActive())
 				return;
 			buffer(RECEIVED_KEY, receivedGroups, false, amount, false, tick, null);
@@ -238,6 +261,8 @@ public class CustomWeaponSfxPlugin extends Plugin
 		WeaponEntry entry = getWeaponEntry(weaponId);
 		if (entry != null && entry.isEnabled())
 			deferredHits.add(new DeferredHit(weaponId, entry.getGroups(), wasSpec, amount, isMax, tick, actor));
+		else if (entry == null)
+			deferredHits.add(new DeferredHit(weaponId, java.util.Collections.emptyList(), wasSpec, amount, isMax, tick, actor));
 	}
 
 	private void resetAllData()
@@ -269,7 +294,8 @@ public class CustomWeaponSfxPlugin extends Plugin
 		clearDefaultGroupConfig(CustomWeaponSfxPanel.RECEIVED_GROUPS_PREFIX, receivedGroups);
 		receivedGroups.clear();
 
-		addDefaultGroup(receivedGroups, CustomWeaponSfxPanel.RECEIVED_GROUPS_PREFIX, EnumSet.of(Triggers.REGULAR_ZERO));
+		clearDefaultGroupConfig(CustomWeaponSfxPanel.GLOBAL_WEAPON_GROUPS_PREFIX, globalWeaponGroups);
+		globalWeaponGroups.clear();
 
 		ignoreSmallMaxHits = true;
 		configManager.setConfiguration(CONFIG_GROUP, "ignoreSmallMaxHits", true);
@@ -277,6 +303,10 @@ public class CustomWeaponSfxPlugin extends Plugin
 		configManager.setConfiguration(CONFIG_GROUP, "ignoreReceivedZeroWithPrayer", true);
 		ignoreZeroWhileThrallActive = true;
 		configManager.setConfiguration(CONFIG_GROUP, "ignoreZeroWhileThrallActive", true);
+		globalWeaponEnabled = true;
+		configManager.setConfiguration(CONFIG_GROUP, CustomWeaponSfxPanel.GLOBAL_WEAPON_GROUPS_PREFIX + "_enabled", true);
+		receivedEnabled = true;
+		configManager.setConfiguration(CONFIG_GROUP, CustomWeaponSfxPanel.RECEIVED_GROUPS_PREFIX + "_enabled", true);
 		if (panel != null) panel.resetToggles();
 
 		rebuildPanel();
@@ -318,10 +348,23 @@ public class CustomWeaponSfxPlugin extends Plugin
 		configManager.setConfiguration(CONFIG_GROUP, "ignoreZeroWhileThrallActive", value);
 	}
 
+	private void onGlobalWeaponEnabledChanged(boolean value)
+	{
+		globalWeaponEnabled = value;
+		configManager.setConfiguration(CONFIG_GROUP, CustomWeaponSfxPanel.GLOBAL_WEAPON_GROUPS_PREFIX + "_enabled", value);
+	}
+
+	private void onReceivedEnabledChanged(boolean value)
+	{
+		receivedEnabled = value;
+		configManager.setConfiguration(CONFIG_GROUP, CustomWeaponSfxPanel.RECEIVED_GROUPS_PREFIX + "_enabled", value);
+	}
+
 	@Subscribe
 	public void onActorDeath(ActorDeath event)
 	{
 		if (event.getActor() != client.getLocalPlayer()) return;
+		if (!receivedEnabled) return;
 		for (TriggerGroup group : receivedGroups)
 		{
 			if (!group.getTriggers().contains(Triggers.PLAYER_DEATH)) continue;
@@ -442,10 +485,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 	{
 		if (getWeaponEntry(itemId) != null) return;
 
-		List<SoundEntry> defaultSounds = new ArrayList<>();
-		defaultSounds.add(new SoundEntry("", 75));
 		List<TriggerGroup> groups = new ArrayList<>();
-		groups.add(new TriggerGroup(EnumSet.noneOf(Triggers.class), defaultSounds, 100));
 		weaponEntries.add(new WeaponEntry(itemId, name, groups));
 
 		configManager.setConfiguration(CONFIG_GROUP, "specWeapon_" + itemId + "_name", name);
@@ -497,7 +537,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 		List<WeaponEntry> snapshot = new ArrayList<>(weaponEntries);
 		List<String> sounds = availableSounds;
 		List<String> bundled = bundledSounds;
-		SwingUtilities.invokeLater(() -> p.rebuild(snapshot, sounds, bundled, receivedGroups));
+		SwingUtilities.invokeLater(() -> p.rebuild(snapshot, sounds, bundled, receivedGroups, globalWeaponGroups));
 	}
 
 	private WeaponEntry getWeaponEntry(int itemId)
@@ -575,28 +615,6 @@ public class CustomWeaponSfxPlugin extends Plugin
 		}
 	}
 
-	private void seedFirstRunGroups(List<TriggerGroup> list, String prefix, Set<Triggers> defaultTriggers)
-	{
-		if (!list.isEmpty()) return;
-		if (configManager.getConfiguration(CONFIG_GROUP, prefix + "_groupCount") != null) return;
-		addDefaultGroup(list, prefix, defaultTriggers);
-	}
-
-	private void addDefaultGroup(List<TriggerGroup> list, String prefix, Set<Triggers> defaultTriggers)
-	{
-		List<SoundEntry> sounds = new ArrayList<>();
-		sounds.add(new SoundEntry("", 75));
-		TriggerGroup group = new TriggerGroup(defaultTriggers, sounds, 100);
-		list.add(group);
-		configManager.setConfiguration(CONFIG_GROUP, prefix + "_groupCount", 1);
-		configManager.setConfiguration(CONFIG_GROUP, prefix + "_group_0_triggers",
-			TriggerGroup.serializeTriggers(group.getTriggers()));
-		configManager.setConfiguration(CONFIG_GROUP, prefix + "_group_0_chance", group.getChance());
-		configManager.setConfiguration(CONFIG_GROUP, prefix + "_group_0_soundCount", 1);
-		configManager.setConfiguration(CONFIG_GROUP, prefix + "_group_0_sound_0", sounds.get(0).getSoundFile());
-		configManager.setConfiguration(CONFIG_GROUP, prefix + "_group_0_volume_0", sounds.get(0).getVolume());
-	}
-
 	private TriggerGroup loadGroup(String keyPrefix)
 	{
 		String triggersStr = configManager.getConfiguration(CONFIG_GROUP, keyPrefix + "_triggers");
@@ -645,13 +663,21 @@ public class CustomWeaponSfxPlugin extends Plugin
 
 	private void fireMatchingGroups(List<TriggerGroup> groups, boolean wasSpec,
 									boolean anyHit, boolean allZero, boolean allMax,
-									boolean suppressMax, boolean suppressZero, boolean isKill)
+									boolean suppressMax, boolean suppressZero, boolean isKill,
+									Set<Triggers> weaponCoveredTriggers)
 	{
-		// If a kill occurred and this weapon has KILL-trigger groups, those take exclusive priority.
-		boolean hasKillGroups = isKill && groups.stream()
+		// Pre-filter: when a non-empty suppression set is provided, skip groups whose triggers
+		// overlap with triggers the weapon already handles.
+		List<TriggerGroup> activeGroups = weaponCoveredTriggers.isEmpty() ? groups : groups.stream()
+			.filter(g -> g.getTriggers().isEmpty()
+				|| g.getTriggers().stream().noneMatch(weaponCoveredTriggers::contains))
+			.collect(Collectors.toList());
+
+		// If a kill occurred and the active groups include KILL-trigger groups, those take exclusive priority.
+		boolean hasKillGroups = isKill && activeGroups.stream()
 			.anyMatch(g -> !g.getTriggers().isEmpty() && g.getTriggers().contains(Triggers.KILL));
 
-		for (TriggerGroup group : groups)
+		for (TriggerGroup group : activeGroups)
 		{
 			Set<Triggers> triggers = group.getTriggers();
 			if (triggers.isEmpty()) continue;

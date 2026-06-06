@@ -3,6 +3,7 @@ package com.customweaponsfx;
 import java.awt.BorderLayout;
 import java.awt.Color;
 import java.awt.Component;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
@@ -27,6 +28,7 @@ import javax.swing.border.EmptyBorder;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.ColorScheme;
+import net.runelite.client.util.LinkBrowser;
 import net.runelite.client.ui.PluginPanel;
 import net.runelite.client.util.AsyncBufferedImage;
 
@@ -50,6 +52,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	private final Consumer<Integer> onRemoveWeapon;
 	private final BiConsumer<String, Integer> onTestSound;
 	private final Runnable onReset;
+	private final Runnable onRefreshSounds;
 	private final Consumer<Boolean> onIgnoreSmallMaxHitsToggled;
 	private final Consumer<Boolean> onIgnoreReceivedZeroWithPrayerToggled;
 	private final Consumer<Boolean> onIgnoreZeroWhileThrallActiveToggled;
@@ -69,6 +72,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		Consumer<Integer> onRemoveWeapon,
 		BiConsumer<String, Integer> onTestSound,
 		Runnable onReset,
+		Runnable onRefreshSounds,
 		Consumer<Boolean> onIgnoreSmallMaxHitsToggled,
 		Consumer<Boolean> onIgnoreReceivedZeroWithPrayerToggled,
 		Consumer<Boolean> onIgnoreZeroWhileThrallActiveToggled,
@@ -82,6 +86,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		this.onRemoveWeapon = onRemoveWeapon;
 		this.onTestSound = onTestSound;
 		this.onReset = onReset;
+		this.onRefreshSounds = onRefreshSounds;
 		this.onIgnoreSmallMaxHitsToggled = onIgnoreSmallMaxHitsToggled;
 		this.onIgnoreReceivedZeroWithPrayerToggled = onIgnoreReceivedZeroWithPrayerToggled;
 		this.onIgnoreZeroWhileThrallActiveToggled = onIgnoreZeroWhileThrallActiveToggled;
@@ -114,6 +119,30 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		top.add(title);
 		top.add(Box.createVerticalStrut(4));
 
+		JLabel customSoundDirections = new JLabel("<html>Want a custom sfx?<br>" +
+				"1. Place <b>.wav</b> files in:</html>");
+		customSoundDirections.setFont(customSoundDirections.getFont().deriveFont(14f));
+		customSoundDirections.setAlignmentX(Component.LEFT_ALIGNMENT);
+		top.add(customSoundDirections);
+
+		JButton folderLink = new JButton("<html><u>.runelite/customweaponsfx/</u></html>");
+		folderLink.setFont(folderLink.getFont().deriveFont(14f));
+		folderLink.setBorderPainted(false);
+		folderLink.setContentAreaFilled(false);
+		folderLink.setFocusPainted(false);
+		folderLink.setForeground(Color.CYAN);
+		folderLink.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+		folderLink.setAlignmentX(Component.LEFT_ALIGNMENT);
+		folderLink.addActionListener(e -> LinkBrowser.open(CustomWeaponSfxPlugin.SOUNDS_DIR.toString()));
+		top.add(folderLink);
+
+		JLabel customSoundDirections2 = new JLabel("<html>2. Click Refresh Sounds<br>" +
+				"3. Click an Add method below and configure it</html>");
+		customSoundDirections2.setFont(customSoundDirections2.getFont().deriveFont(14f));
+		customSoundDirections2.setAlignmentX(Component.LEFT_ALIGNMENT);
+		top.add(customSoundDirections2);
+		top.add(Box.createVerticalStrut(8));
+
 		JPanel btnRow = new JPanel();
 		btnRow.setLayout(new javax.swing.BoxLayout(btnRow, javax.swing.BoxLayout.X_AXIS));
 		btnRow.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -131,6 +160,18 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		btnRow.add(addEquippedBtn);
 
 		top.add(btnRow);
+		top.add(Box.createVerticalStrut(4));
+
+		JPanel refreshRow = new JPanel();
+		refreshRow.setLayout(new javax.swing.BoxLayout(refreshRow, javax.swing.BoxLayout.X_AXIS));
+		refreshRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+		JButton refreshSoundsBtn = new JButton("Refresh Sounds");
+		refreshSoundsBtn.setToolTipText("Rescan .runelite/customweaponsfx/ for new .wav files");
+		refreshSoundsBtn.addActionListener(e -> onRefreshSounds.run());
+		refreshRow.add(refreshSoundsBtn);
+
+		top.add(refreshRow);
 		top.add(Box.createVerticalStrut(4));
 
 		JPanel resetRow = new JPanel();

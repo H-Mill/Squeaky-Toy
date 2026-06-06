@@ -3,6 +3,7 @@ package com.customweaponsfx;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.EnumSet;
@@ -35,6 +36,7 @@ import net.runelite.api.events.GameTick;
 import net.runelite.api.events.HitsplatApplied;
 import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.gameval.VarbitID;
+import net.runelite.client.RuneLite;
 import net.runelite.client.audio.AudioPlayer;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
@@ -56,6 +58,7 @@ import net.runelite.client.util.ImageUtil;
 public class CustomWeaponSfxPlugin extends Plugin
 {
 	static final String CONFIG_GROUP = "customweaponsfx";
+	static final File SOUNDS_DIR = new File(RuneLite.RUNELITE_DIR, "customweaponsfx");
 
 	private static final int VARP_SPEC_PERCENT = 300;
 	private static final int PENDING_SPEC_TIMEOUT_TICKS = 10;
@@ -89,6 +92,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 	private boolean globalWeaponEnabled = true;
 	private boolean receivedEnabled = true;
 	private int thrallTicksRemaining = 0;
+	private boolean suppressReceivedOnDeath = false;
 
 	// Hitsplats are batched per tick so multi-hit attacks are evaluated together.
 	private final Map<Integer, PendingAttack> pendingAttacks = new HashMap<>();
@@ -100,12 +104,13 @@ public class CustomWeaponSfxPlugin extends Plugin
 	protected void startUp()
 	{
 		executor = Executors.newSingleThreadExecutor();
+		SOUNDS_DIR.mkdirs();
 
 		loadWeaponEntries();
 		loadDefaultGroups(receivedGroups, CustomWeaponSfxPanel.RECEIVED_GROUPS_PREFIX);
 		loadDefaultGroups(globalWeaponGroups, CustomWeaponSfxPanel.GLOBAL_WEAPON_GROUPS_PREFIX);
 		bundledSounds = scanBundledSounds();
-		availableSounds = new ArrayList<>();
+		availableSounds = scanSounds();
 
 		String ignoreVal = configManager.getConfiguration(CONFIG_GROUP, "ignoreSmallMaxHits");
 		ignoreSmallMaxHits = ignoreVal == null || Boolean.parseBoolean(ignoreVal);
@@ -122,7 +127,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 		String receivedEnabledVal = configManager.getConfiguration(CONFIG_GROUP, CustomWeaponSfxPanel.RECEIVED_GROUPS_PREFIX + "_enabled");
 		receivedEnabled = receivedEnabledVal == null || Boolean.parseBoolean(receivedEnabledVal);
 
-		panel = new CustomWeaponSfxPanel(configManager, itemManager, this::openWeaponSearch, this::addEquippedWeapon, this::removeWeapon, this::playSoundFile, this::resetAllData, this::onIgnoreSmallMaxHitsChanged, this::onIgnoreReceivedZeroWithPrayerChanged, this::onIgnoreZeroWhileThrallActiveChanged, this::onGlobalWeaponEnabledChanged, this::onReceivedEnabledChanged);
+		panel = new CustomWeaponSfxPanel(configManager, itemManager, this::openWeaponSearch, this::addEquippedWeapon, this::removeWeapon, this::playSoundFile, this::resetAllData, this::refreshSounds, this::onIgnoreSmallMaxHitsChanged, this::onIgnoreReceivedZeroWithPrayerChanged, this::onIgnoreZeroWhileThrallActiveChanged, this::onGlobalWeaponEnabledChanged, this::onReceivedEnabledChanged);
 
 		navButton = NavigationButton.builder()
 			.tooltip("Custom Weapon SFX")
@@ -157,6 +162,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 		pendingSpecItemId = -1;
 		pendingSpecTick = -1;
 		thrallTicksRemaining = 0;
+		suppressReceivedOnDeath = false;
 
 		pendingAttacks.clear();
 		pendingAttackTick = -1;
@@ -207,8 +213,11 @@ public class CustomWeaponSfxPlugin extends Plugin
 				boolean isKill = attack.actors.stream()
 					.filter(a -> a instanceof Player && a != client.getLocalPlayer())
 					.anyMatch(a -> ((Player) a).getHealthRatio() == 0);
-				fireMatchingGroups(attack.groups, attack.wasSpec, anyHit, allZero, allMax, suppressMax, suppressZero, isKill,
-					EnumSet.noneOf(Triggers.class));
+				if (!(attack.groups == receivedGroups && suppressReceivedOnDeath))
+				{
+					fireMatchingGroups(attack.groups, attack.wasSpec, anyHit, allZero, allMax, suppressMax, suppressZero, isKill,
+						EnumSet.noneOf(Triggers.class));
+				}
 
 				if (globalWeaponEnabled && attack.groups != receivedGroups)
 				{
@@ -232,6 +241,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 				pendingSpecTick   = -1;
 			}
 		}
+		suppressReceivedOnDeath = false;
 	}
 
 	@Subscribe
@@ -261,7 +271,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 		WeaponEntry entry = getWeaponEntry(weaponId);
 		if (entry != null && entry.isEnabled())
 			deferredHits.add(new DeferredHit(weaponId, entry.getGroups(), wasSpec, amount, isMax, tick, actor));
-		else if (entry == null)
+		else
 			deferredHits.add(new DeferredHit(weaponId, java.util.Collections.emptyList(), wasSpec, amount, isMax, tick, actor));
 	}
 
@@ -368,6 +378,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 		for (TriggerGroup group : receivedGroups)
 		{
 			if (!group.getTriggers().contains(Triggers.PLAYER_DEATH)) continue;
+			suppressReceivedOnDeath = true;
 			fireGroup(group);
 		}
 	}
@@ -527,6 +538,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 
 	private void refreshSounds()
 	{
+		availableSounds = scanSounds();
 		rebuildPanel();
 	}
 
@@ -749,7 +761,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 			case SPECIAL_ZERO: return wasSpec && allZero;
 			case SPECIAL_HIT:  return wasSpec && anyHit && !allMax;
 			case SPECIAL_MAX:  return wasSpec && allMax && !suppressMax;
-			case ALL:          return anyHit;
+			case ALL:          return true;
 			case KILL:         return isKill;
 			default:           return false;
 		}
@@ -802,14 +814,45 @@ public class CustomWeaponSfxPlugin extends Plugin
 				catch (Exception e) { log.debug("Failed to play bundled sound {}", name, e); }
 			});
 		}
+		else
+		{
+			File f = new File(SOUNDS_DIR, soundFile + ".wav");
+			if (!f.exists())
+			{
+				log.debug("Sound file missing: {}", f.getAbsolutePath());
+				return;
+			}
+			executor.submit(() ->
+			{
+				try { audioPlayer.play(f, gain); }
+				catch (Exception e) { log.debug("Failed to play {}", soundFile, e); }
+			});
+		}
+	}
+
+	private List<String> scanSounds()
+	{
+		List<String> sounds = new ArrayList<>();
+		File[] files = SOUNDS_DIR.listFiles(f -> f.isFile() && f.getName().toLowerCase().endsWith(".wav"));
+		if (files != null)
+		{
+			for (File f : files)
+			{
+				String name = f.getName();
+				sounds.add(name.substring(0, name.length() - 4));
+			}
+			sounds.sort(String.CASE_INSENSITIVE_ORDER);
+		}
+		return sounds;
 	}
 
 	private List<String> scanBundledSounds()
 	{
-		return new ArrayList<>(Arrays.asList("bonk", "punch", "shot",
-				"squeak", "oh-baby-a-triple", "emotional-damage",
-				"minecraft-hit", "minecraft-oof", "thats-a-lot-of-damage",
-				"gta-wasted","mario-death","okay", "waza"));
+		List<String> sounds = new ArrayList<>(Arrays.asList(
+				"bonk", "punch", "shot", "squeak", "oh-baby-a-triple",
+				"emotional-damage", "thats-a-lot-of-damage", "okay"));
+		sounds.sort(String.CASE_INSENSITIVE_ORDER);
+		return sounds;
 	}
 
 	private static float volumeToGain(int volume)

@@ -47,7 +47,7 @@ Click **+ Add Sound** inside a group to add more sounds to the random pool. Soun
 | Special attack zero | Special attack that deals 0 damage |
 | Special attack hit | Special attack that deals non-max damage |
 | Special attack max | Special attack that is a max hit |
-| All attacks | Any attack that deals damage |
+| All attacks | Every attack, including zero-damage hits |
 | Player kill | Your attack kills another player |
 
 The **Received Attacks** section supports a subset: Regular attack zero, Regular attack hit, All attacks, and Player death.
@@ -71,6 +71,8 @@ This lets you set up a generic kill sound alongside a more specific one for, say
 The **Player death** trigger is available only in the **Received Attacks** section. It fires when your character dies, regardless of what killed you (another player, an NPC, poison, etc.).
 
 It fires independently of the hitsplat system — a death from poison or a delayed hit will still trigger it. It cannot be added to weapon sound groups.
+
+When Player death fires, all other Received Attacks triggers are suppressed for that same hit. Only the death sound plays.
 
 ## Global (All Weapons)
 

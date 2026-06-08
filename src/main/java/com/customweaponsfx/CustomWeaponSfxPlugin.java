@@ -32,6 +32,7 @@ import net.runelite.api.InventoryID;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.events.ActorDeath;
+import net.runelite.api.events.AnimationChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.HitsplatApplied;
 import net.runelite.api.events.VarbitChanged;
@@ -99,6 +100,8 @@ public class CustomWeaponSfxPlugin extends Plugin
 	private int pendingAttackTick = -1;
 
 	private final List<DeferredHit> deferredHits = new ArrayList<>();
+
+	private int lastAttackWeaponId = -1;
 
 	@Override
 	protected void startUp()
@@ -168,6 +171,8 @@ public class CustomWeaponSfxPlugin extends Plugin
 		pendingAttackTick = -1;
 
 		deferredHits.clear();
+
+		lastAttackWeaponId = -1;
 
 		log.debug("Custom Weapon SFX stopped!");
 	}
@@ -245,6 +250,15 @@ public class CustomWeaponSfxPlugin extends Plugin
 	}
 
 	@Subscribe
+	public void onAnimationChanged(AnimationChanged event)
+	{
+		if (event.getActor() != client.getLocalPlayer()) return;
+		if (client.getLocalPlayer().getAnimation() == -1) return;
+		int weaponId = getEquippedWeaponId();
+		if (weaponId >= 0) lastAttackWeaponId = weaponId;
+	}
+
+	@Subscribe
 	public void onHitsplatApplied(HitsplatApplied event)
 	{
 		Actor actor = event.getActor();
@@ -265,7 +279,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 		boolean isMax   = isMaxHit(event.getHitsplat().getHitsplatType());
 		boolean wasSpec = pendingSpecItemId >= 0;
 
-		int weaponId = getEquippedWeaponId();
+		int weaponId = lastAttackWeaponId >= 0 ? lastAttackWeaponId : getEquippedWeaponId();
 		if (weaponId < 0) return;
 
 		WeaponEntry entry = getWeaponEntry(weaponId);

@@ -18,8 +18,8 @@ import net.runelite.client.config.ConfigManager;
  *       plus its groups.</li>
  *   <li>A "default" section (e.g. {@code defaultReceived}, {@code globalWeapon}): {@code _groupCount},
  *       {@code _enabled}, plus its groups.</li>
- *   <li>A group {@code <section>_group_<i>}: {@code _triggers}, {@code _chance}, {@code _soundCount},
- *       and per sound {@code _sound_<j>} / {@code _volume_<j>}.</li>
+ *   <li>A group {@code <section>_group_<i>}: {@code _name}, {@code _triggers}, {@code _chance},
+ *       {@code _soundCount}, and per sound {@code _sound_<j>} / {@code _volume_<j>}.</li>
  * </ul>
  *
  * <p>The store reads/writes through a small {@link Backend} seam so its serialize→deserialize
@@ -195,11 +195,11 @@ class CustomWeaponSfxConfigStore
 
 		List<TriggerGroup> groups = new ArrayList<>();
 		for (int i = 0; i < count; i++)
-			groups.add(loadGroup(groupKey(section, i)));
+			groups.add(loadGroup(groupKey(section, i), i));
 		return groups;
 	}
 
-	private TriggerGroup loadGroup(String gk)
+	private TriggerGroup loadGroup(String gk, int index)
 	{
 		Set<Triggers> triggers = TriggerGroup.deserializeTriggers(backend.get(gk + "_triggers"));
 		int chance = parseIntOr(backend.get(gk + "_chance"), DEFAULT_CHANCE);
@@ -212,7 +212,12 @@ class CustomWeaponSfxConfigStore
 			int vol = parseIntOr(backend.get(gk + "_volume_" + j), DEFAULT_VOLUME);
 			sounds.add(new SoundEntry(sf != null ? sf : "", vol));
 		}
-		return new TriggerGroup(triggers, sounds, chance);
+
+		TriggerGroup group = new TriggerGroup(triggers, sounds, chance);
+		// Pre-name configs (and any with a blank name) fall back to the positional default.
+		String name = backend.get(gk + "_name");
+		group.setName(name != null && !name.isBlank() ? name : "Sound Group " + (index + 1));
+		return group;
 	}
 
 	private void saveGroups(String section, List<TriggerGroup> groups)
@@ -224,6 +229,8 @@ class CustomWeaponSfxConfigStore
 
 	private void saveGroup(String gk, TriggerGroup g)
 	{
+		if (g.getName() != null) backend.set(gk + "_name", g.getName());
+		else backend.unset(gk + "_name");
 		backend.set(gk + "_triggers", TriggerGroup.serializeTriggers(g.getTriggers()));
 		backend.set(gk + "_chance", g.getChance());
 		List<SoundEntry> sounds = g.getSounds();
@@ -244,6 +251,7 @@ class CustomWeaponSfxConfigStore
 
 	private void clearGroup(String gk, List<SoundEntry> sounds)
 	{
+		backend.unset(gk + "_name");
 		backend.unset(gk + "_triggers");
 		backend.unset(gk + "_chance");
 		backend.unset(gk + "_soundCount");

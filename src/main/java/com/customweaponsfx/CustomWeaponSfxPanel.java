@@ -525,10 +525,41 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			groupHeader.setBackground(ColorScheme.DARK_GRAY_COLOR);
 			groupHeader.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-			JLabel groupLabel = new JLabel("Sound Group " + (i + 1));
+			String groupName = group.getName() != null ? group.getName() : "Sound Group " + (i + 1);
+			JLabel groupLabel = new JLabel(groupName);
 			groupLabel.setForeground(ColorScheme.BRAND_ORANGE);
 			groupLabel.setFont(groupLabel.getFont().deriveFont(Font.BOLD, 11f));
 			groupHeader.add(groupLabel, BorderLayout.WEST);
+
+			JPanel headerButtons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 2, 0));
+			headerButtons.setBackground(ColorScheme.DARK_GRAY_COLOR);
+
+			JButton renameGroupBtn = new JButton("✎");
+			renameGroupBtn.setMargin(new java.awt.Insets(2, 5, 2, 5));
+			renameGroupBtn.setToolTipText("Rename sound group");
+			renameGroupBtn.addActionListener(e ->
+			{
+				String input = JOptionPane.showInputDialog(this, "Group name:", groupName);
+				if (input == null) return; // cancelled
+				String trimmed = input.trim();
+				if (trimmed.isEmpty())
+				{
+					JOptionPane.showMessageDialog(this,
+						"Name cannot be empty.", "Invalid name", JOptionPane.WARNING_MESSAGE);
+					return;
+				}
+				if (TriggerGroup.isNameTaken(groups, trimmed, group))
+				{
+					JOptionPane.showMessageDialog(this,
+						"A sound group named \"" + trimmed + "\" already exists.",
+						"Duplicate name", JOptionPane.WARNING_MESSAGE);
+					return;
+				}
+				group.setName(trimmed);
+				onSave.run();
+				rebuildGroupsSection(holder, groups, availableSounds, onSave, visibleTriggers);
+			});
+			headerButtons.add(renameGroupBtn);
 
 			JButton removeGroupBtn = new JButton("✕");
 			removeGroupBtn.setMargin(new java.awt.Insets(2, 5, 2, 5));
@@ -538,7 +569,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			{
 				int confirm = JOptionPane.showConfirmDialog(
 					this,
-					"Remove Sound Group " + (idx + 1) + "?",
+					"Remove \"" + groupName + "\"?",
 					"Remove Sound Group",
 					JOptionPane.YES_NO_OPTION,
 					JOptionPane.WARNING_MESSAGE
@@ -548,7 +579,9 @@ public class CustomWeaponSfxPanel extends PluginPanel
 				onSave.run();
 				rebuildGroupsSection(holder, groups, availableSounds, onSave, visibleTriggers);
 			});
-			groupHeader.add(removeGroupBtn, BorderLayout.EAST);
+			headerButtons.add(removeGroupBtn);
+
+			groupHeader.add(headerButtons, BorderLayout.EAST);
 
 			JPanel soundsHolder = new JPanel();
 			soundsHolder.setLayout(new javax.swing.BoxLayout(soundsHolder, javax.swing.BoxLayout.Y_AXIS));
@@ -577,7 +610,9 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		{
 			List<SoundEntry> newSounds = new ArrayList<>();
 			newSounds.add(new SoundEntry("", 75));
-			groups.add(new TriggerGroup(EnumSet.noneOf(Triggers.class), newSounds, 100));
+			TriggerGroup newGroup = new TriggerGroup(EnumSet.noneOf(Triggers.class), newSounds, 100);
+			newGroup.setName(TriggerGroup.defaultName(groups));
+			groups.add(newGroup);
 			onSave.run();
 			rebuildGroupsSection(holder, groups, availableSounds, onSave, visibleTriggers);
 		});

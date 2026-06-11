@@ -25,7 +25,6 @@ import javax.swing.JPanel;
 import javax.swing.JSlider;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
-import net.runelite.client.config.ConfigManager;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.util.LinkBrowser;
@@ -45,7 +44,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	private final Set<Integer> expandedWeapons = new HashSet<>();
 	private final Set<String> expandedDefaults = new HashSet<>();
 
-	private final ConfigManager configManager;
+	private final CustomWeaponSfxConfigStore store;
 	private final ItemManager itemManager;
 	private final Runnable onOpenSearch;
 	private final Runnable onAddEquipped;
@@ -53,11 +52,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	private final BiConsumer<String, Integer> onTestSound;
 	private final Runnable onReset;
 	private final Runnable onRefreshSounds;
-	private final Consumer<Boolean> onIgnoreSmallMaxHitsToggled;
-	private final Consumer<Boolean> onIgnoreReceivedZeroWithPrayerToggled;
-	private final Consumer<Boolean> onIgnoreZeroWhileThrallActiveToggled;
-	private final Consumer<Boolean> onGlobalWeaponEnabledToggled;
-	private final Consumer<Boolean> onReceivedEnabledToggled;
+	private final BiConsumer<SfxOption, Boolean> onOptionToggled;
 
 	private JCheckBox ignoreSmallMaxCheckBox;
 	private JCheckBox ignoreZeroPrayerCheckBox;
@@ -65,7 +60,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 
 	private final JPanel weaponListPanel;
 	private final JPanel mainContent;
-	public CustomWeaponSfxPanel(ConfigManager configManager,
+	public CustomWeaponSfxPanel(CustomWeaponSfxConfigStore store,
 		ItemManager itemManager,
 		Runnable onOpenSearch,
 		Runnable onAddEquipped,
@@ -73,13 +68,9 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		BiConsumer<String, Integer> onTestSound,
 		Runnable onReset,
 		Runnable onRefreshSounds,
-		Consumer<Boolean> onIgnoreSmallMaxHitsToggled,
-		Consumer<Boolean> onIgnoreReceivedZeroWithPrayerToggled,
-		Consumer<Boolean> onIgnoreZeroWhileThrallActiveToggled,
-		Consumer<Boolean> onGlobalWeaponEnabledToggled,
-		Consumer<Boolean> onReceivedEnabledToggled)
+		BiConsumer<SfxOption, Boolean> onOptionToggled)
 	{
-		this.configManager = configManager;
+		this.store = store;
 		this.itemManager = itemManager;
 		this.onOpenSearch = onOpenSearch;
 		this.onAddEquipped = onAddEquipped;
@@ -87,11 +78,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		this.onTestSound = onTestSound;
 		this.onReset = onReset;
 		this.onRefreshSounds = onRefreshSounds;
-		this.onIgnoreSmallMaxHitsToggled = onIgnoreSmallMaxHitsToggled;
-		this.onIgnoreReceivedZeroWithPrayerToggled = onIgnoreReceivedZeroWithPrayerToggled;
-		this.onIgnoreZeroWhileThrallActiveToggled = onIgnoreZeroWhileThrallActiveToggled;
-		this.onGlobalWeaponEnabledToggled = onGlobalWeaponEnabledToggled;
-		this.onReceivedEnabledToggled = onReceivedEnabledToggled;
+		this.onOptionToggled = onOptionToggled;
 
 		setLayout(new BorderLayout());
 		setBorder(new EmptyBorder(10, 10, 10, 10));
@@ -237,8 +224,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 
 		content.add(Box.createVerticalStrut(4));
 
-		String ignoreVal = configManager.getConfiguration(CustomWeaponSfxPlugin.CONFIG_GROUP, "ignoreSmallMaxHits");
-		boolean ignoreSmallMaxHits = ignoreVal == null || Boolean.parseBoolean(ignoreVal);
+		boolean ignoreSmallMaxHits = store.getBool(SfxOption.IGNORE_SMALL_MAX.configKey(), SfxOption.IGNORE_SMALL_MAX.defaultValue());
 		ignoreSmallMaxCheckBox = new JCheckBox("Ignore max hits ≤ 3", ignoreSmallMaxHits);
 		ignoreSmallMaxCheckBox.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
 		ignoreSmallMaxCheckBox.setBackground(ColorScheme.DARKER_GRAY_COLOR);
@@ -246,11 +232,10 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			+ "damage is 3 or less. Prevents thrall max hits from<br>"
 			+ "triggering max hit sounds.</html>");
 		ignoreSmallMaxCheckBox.setAlignmentX(Component.LEFT_ALIGNMENT);
-		ignoreSmallMaxCheckBox.addActionListener(e -> onIgnoreSmallMaxHitsToggled.accept(ignoreSmallMaxCheckBox.isSelected()));
+		ignoreSmallMaxCheckBox.addActionListener(e -> onOptionToggled.accept(SfxOption.IGNORE_SMALL_MAX, ignoreSmallMaxCheckBox.isSelected()));
 		content.add(ignoreSmallMaxCheckBox);
 
-		String ignoreZeroVal = configManager.getConfiguration(CustomWeaponSfxPlugin.CONFIG_GROUP, "ignoreReceivedZeroWithPrayer");
-		boolean ignoreReceivedZeroWithPrayer = ignoreZeroVal == null || Boolean.parseBoolean(ignoreZeroVal);
+		boolean ignoreReceivedZeroWithPrayer = store.getBool(SfxOption.IGNORE_RECEIVED_ZERO_PRAYER.configKey(), SfxOption.IGNORE_RECEIVED_ZERO_PRAYER.defaultValue());
 		ignoreZeroPrayerCheckBox = new JCheckBox("Ignore zeroes with prayer", ignoreReceivedZeroWithPrayer);
 		ignoreZeroPrayerCheckBox.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
 		ignoreZeroPrayerCheckBox.setBackground(ColorScheme.DARKER_GRAY_COLOR);
@@ -258,18 +243,17 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			+ "trigger will not fire while Protect from Melee,<br>"
 			+ "Protect from Ranged, or Protect from Magic is active.</html>");
 		ignoreZeroPrayerCheckBox.setAlignmentX(Component.LEFT_ALIGNMENT);
-		ignoreZeroPrayerCheckBox.addActionListener(e -> onIgnoreReceivedZeroWithPrayerToggled.accept(ignoreZeroPrayerCheckBox.isSelected()));
+		ignoreZeroPrayerCheckBox.addActionListener(e -> onOptionToggled.accept(SfxOption.IGNORE_RECEIVED_ZERO_PRAYER, ignoreZeroPrayerCheckBox.isSelected()));
 		content.add(ignoreZeroPrayerCheckBox);
 
-		String ignoreThrallZeroVal = configManager.getConfiguration(CustomWeaponSfxPlugin.CONFIG_GROUP, "ignoreZeroWhileThrallActive");
-		boolean ignoreZeroWhileThrallActive = ignoreThrallZeroVal == null || Boolean.parseBoolean(ignoreThrallZeroVal);
+		boolean ignoreZeroWhileThrallActive = store.getBool(SfxOption.IGNORE_ZERO_THRALL.configKey(), SfxOption.IGNORE_ZERO_THRALL.defaultValue());
 		ignoreZeroThrallCheckBox = new JCheckBox("Ignore zeroes with thrall", ignoreZeroWhileThrallActive);
 		ignoreZeroThrallCheckBox.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
 		ignoreZeroThrallCheckBox.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		ignoreZeroThrallCheckBox.setToolTipText("<html>When enabled, zero-damage triggers will not fire<br>"
 			+ "while a thrall is active.</html>");
 		ignoreZeroThrallCheckBox.setAlignmentX(Component.LEFT_ALIGNMENT);
-		ignoreZeroThrallCheckBox.addActionListener(e -> onIgnoreZeroWhileThrallActiveToggled.accept(ignoreZeroThrallCheckBox.isSelected()));
+		ignoreZeroThrallCheckBox.addActionListener(e -> onOptionToggled.accept(SfxOption.IGNORE_ZERO_THRALL, ignoreZeroThrallCheckBox.isSelected()));
 		content.add(ignoreZeroThrallCheckBox);
 
 		section.add(content);
@@ -307,12 +291,12 @@ public class CustomWeaponSfxPanel extends PluginPanel
 
 			weaponListPanel.add(buildDefaultRowGroups(
 				"Received Attacks", RECEIVED_GROUPS_PREFIX, receivedGroups, availableSounds,
-				EnumSet.of(Triggers.REGULAR_ZERO, Triggers.REGULAR_HIT, Triggers.ALL, Triggers.PLAYER_DEATH), onReceivedEnabledToggled));
+				EnumSet.of(Triggers.REGULAR_ZERO, Triggers.REGULAR_HIT, Triggers.ALL, Triggers.PLAYER_DEATH), SfxOption.RECEIVED_ENABLED));
 			weaponListPanel.add(Box.createVerticalStrut(4));
 
 			weaponListPanel.add(buildDefaultRowGroups(
 				"Global (All Weapons)", GLOBAL_WEAPON_GROUPS_PREFIX, globalWeaponGroups, availableSounds,
-				EnumSet.complementOf(EnumSet.of(Triggers.REGULAR_HIT, Triggers.PLAYER_DEATH)), onGlobalWeaponEnabledToggled));
+				EnumSet.complementOf(EnumSet.of(Triggers.REGULAR_HIT, Triggers.PLAYER_DEATH)), SfxOption.GLOBAL_ENABLED));
 			weaponListPanel.add(Box.createVerticalStrut(4));
 
 
@@ -329,7 +313,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 
 	private JPanel buildDefaultRowGroups(String label, String prefix,
 		List<TriggerGroup> groups, List<String> availableSounds, Set<Triggers> visibleTriggers,
-		Consumer<Boolean> onEnabledToggled)
+		SfxOption enabledOption)
 	{
 		boolean collapsed = !expandedDefaults.contains(prefix);
 
@@ -355,15 +339,14 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		nameLabel.setFont(nameLabel.getFont().deriveFont(Font.BOLD, 12f));
 		headerRow.add(nameLabel, BorderLayout.CENTER);
 
-		if (onEnabledToggled != null)
+		if (enabledOption != null)
 		{
-			String enabledVal = configManager.getConfiguration(CustomWeaponSfxPlugin.CONFIG_GROUP, prefix + "_enabled");
-			boolean enabled = enabledVal == null || Boolean.parseBoolean(enabledVal);
+			boolean enabled = store.getBool(enabledOption.configKey(), enabledOption.defaultValue());
 			JCheckBox enabledBox = new JCheckBox();
 			enabledBox.setSelected(enabled);
 			enabledBox.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 			enabledBox.setToolTipText("Enable or disable this section");
-			enabledBox.addActionListener(e -> onEnabledToggled.accept(enabledBox.isSelected()));
+			enabledBox.addActionListener(e -> onOptionToggled.accept(enabledOption, enabledBox.isSelected()));
 			headerRow.add(enabledBox, BorderLayout.EAST);
 		}
 
@@ -379,7 +362,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		groupsHolder.setAlignmentX(Component.LEFT_ALIGNMENT);
 		groupsHolder.setVisible(!collapsed);
 		rebuildGroupsSection(groupsHolder, groups, availableSounds,
-			() -> saveDefaultGroupsFromPanel(prefix, groups), visibleTriggers);
+			() -> store.saveDefaultGroups(prefix, groups), visibleTriggers);
 		panel.add(groupsHolder);
 
 		collapseBtn.addActionListener(e ->
@@ -462,8 +445,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		{
 			entry.setEnabled(enabledBox.isSelected());
 			nameLabel.setForeground(entry.isEnabled() ? Color.WHITE : Color.GRAY);
-			configManager.setConfiguration(CustomWeaponSfxPlugin.CONFIG_GROUP,
-				"specWeapon_" + entry.getItemId() + "_enabled", entry.isEnabled());
+			store.saveWeaponEnabled(entry.getItemId(), entry.isEnabled());
 		});
 		eastBlock.add(enabledBox);
 
@@ -498,7 +480,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		groupsHolder.setAlignmentX(Component.LEFT_ALIGNMENT);
 		groupsHolder.setVisible(!collapsed);
 		rebuildGroupsSection(groupsHolder, entry.getGroups(), availableSounds,
-			() -> saveWeaponGroupsFromPanel(entry),
+			() -> store.saveWeaponGroups(entry),
 			EnumSet.complementOf(EnumSet.of(Triggers.REGULAR_HIT, Triggers.PLAYER_DEATH)));
 		panel.add(groupsHolder);
 
@@ -768,58 +750,6 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		row.add(slider);
 		row.add(val);
 		return row;
-	}
-
-	private void saveWeaponGroupsFromPanel(WeaponEntry entry)
-	{
-		int itemId = entry.getItemId();
-		List<TriggerGroup> groups = entry.getGroups();
-		configManager.setConfiguration(CustomWeaponSfxPlugin.CONFIG_GROUP,
-			"specWeapon_" + itemId + "_groupCount", groups.size());
-		for (int i = 0; i < groups.size(); i++)
-		{
-			TriggerGroup g = groups.get(i);
-			String gk = "specWeapon_" + itemId + "_group_" + i;
-			configManager.setConfiguration(CustomWeaponSfxPlugin.CONFIG_GROUP,
-				gk + "_triggers", TriggerGroup.serializeTriggers(g.getTriggers()));
-			configManager.setConfiguration(CustomWeaponSfxPlugin.CONFIG_GROUP,
-				gk + "_chance", g.getChance());
-			List<SoundEntry> se = g.getSounds();
-			configManager.setConfiguration(CustomWeaponSfxPlugin.CONFIG_GROUP,
-				gk + "_soundCount", se.size());
-			for (int j = 0; j < se.size(); j++)
-			{
-				configManager.setConfiguration(CustomWeaponSfxPlugin.CONFIG_GROUP,
-					gk + "_sound_" + j, se.get(j).getSoundFile());
-				configManager.setConfiguration(CustomWeaponSfxPlugin.CONFIG_GROUP,
-					gk + "_volume_" + j, se.get(j).getVolume());
-			}
-		}
-	}
-
-	private void saveDefaultGroupsFromPanel(String prefix, List<TriggerGroup> groups)
-	{
-		configManager.setConfiguration(CustomWeaponSfxPlugin.CONFIG_GROUP,
-			prefix + "_groupCount", groups.size());
-		for (int i = 0; i < groups.size(); i++)
-		{
-			TriggerGroup g = groups.get(i);
-			String gk = prefix + "_group_" + i;
-			configManager.setConfiguration(CustomWeaponSfxPlugin.CONFIG_GROUP,
-				gk + "_triggers", TriggerGroup.serializeTriggers(g.getTriggers()));
-			configManager.setConfiguration(CustomWeaponSfxPlugin.CONFIG_GROUP,
-				gk + "_chance", g.getChance());
-			List<SoundEntry> se = g.getSounds();
-			configManager.setConfiguration(CustomWeaponSfxPlugin.CONFIG_GROUP,
-				gk + "_soundCount", se.size());
-			for (int j = 0; j < se.size(); j++)
-			{
-				configManager.setConfiguration(CustomWeaponSfxPlugin.CONFIG_GROUP,
-					gk + "_sound_" + j, se.get(j).getSoundFile());
-				configManager.setConfiguration(CustomWeaponSfxPlugin.CONFIG_GROUP,
-					gk + "_volume_" + j, se.get(j).getVolume());
-			}
-		}
 	}
 
 	private String[] buildSoundOptions(List<String> userSounds)

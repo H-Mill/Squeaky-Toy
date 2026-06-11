@@ -115,3 +115,48 @@ Click **Reset All Data** to clear all weapons and sound groups and restore defau
 **Thrall hits** — if you have a thrall active and a *Regular attack zero* or *All attacks* trigger set, thrall zeros and damage will cause the sound to play. Thrall hits are indistinguishable from player hits in the data provided by the game client, so this cannot be fully filtered out. The **Ignore max hits ≤ 3** and **Ignore zeroes with thrall** toggles mitigate thrall hits specifically.
 
 **Splashing** - Your players splashing, like thrall zeros, cannot be distinguished from other players splashes, so I opted to not include them in the plugin (everyones splashes around you would cause a SFX).
+
+## Version History
+
+### 2.4
+
+Internal refactor — no user-facing changes. Extracted config persistence into a single `CustomWeaponSfxConfigStore`, split the per-tick hit aggregation out of the plugin into `HitAggregator`, collapsed the five option toggles behind an `SfxOption` enum, and replaced the hardcoded special-attack varp with the `VarPlayerID.SA_ENERGY` gameval constant. Removed the unused update-notification panel.
+
+### 2.3
+
+- Fix wrong weapon sound playing when switching weapons before the hitsplat lands (ranged/magic).
+- Add **Player Kill** trigger — use it alone or with other damage triggers to play SFX when you send another player to the shadow realm.
+- Add **Player Death** trigger (Received Attacks only) — plays SFX when your character dies regardless of the cause. When it fires, all other Received Attacks triggers are suppressed for that hit.
+- Add **Global (All Weapons)** section — configure fallback sounds that play for any weapon that doesn't have its own group for a given trigger. Weapon-specific groups always take priority.
+- Add enable/disable toggles to the Received Attacks and Global (All Weapons) sections.
+- Move the three options toggles (ignore max hits ≤ 3, ignore zeroes with prayer, ignore zeroes with thrall) into a collapsible Options section.
+- Sound groups can now be deleted even when only one remains.
+- **All attacks** trigger now fires on zero-damage hits as well as non-zero hits.
+- Custom sounds: place any `.wav` file in `.runelite/customweaponsfx/`, click Refresh Sounds, and it will appear in all sound dropdowns.
+
+### 2.2
+
+Add **Ignore zeroes with thrall** toggle, until I find a better way to avoid issues with thralls (this may be never).
+
+### 2.1
+
+Add **Ignore max hits ≤ 3** and **Ignore zeroes with prayer** toggles.
+
+### 2.0
+
+Rebranded from Squeaky Toy to Custom Weapon SFX.
+
+This is a full overhaul of the original plugin, which supported only a single sound at a fixed volume triggered by all player attacks / player zeros, or all attacks received / zeros received.
+
+- Custom sounds — place `.wav` files in `.runelite/customweaponsfx/` and select them in the panel
+- Per-weapon configuration — add weapons individually by name search or by equipping them
+- Sound groups — each weapon supports multiple sound groups, each independently configured
+- Triggers — control exactly when each group fires: zero damage, regular hit, max hit, special zero, special hit, special max, or any damaging hit
+- Trigger chance — set a probability (0–100%) that a group fires when its trigger condition is met
+- Per-group volume — each group has its own volume level
+- Multi-sound groups — assign multiple sounds to a group and one is chosen at random on each fire
+- Received Attacks — a dedicated section for sounds that play when you take damage, separate from outgoing attacks
+
+### 1.0
+
+Created Squeaky Toy Plugin.

@@ -246,4 +246,62 @@ public class CustomWeaponSfxConfigStoreTest
 		assertNull(backend.get("specWeapon_42_name"));
 		assertNull(backend.get("specWeapon_42_groupCount"));
 	}
+
+	@Test
+	public void excludedNpcIdsRoundTripAndDefaultEmpty()
+	{
+		assertEquals("", store.getExcludedNpcIdsRaw());
+
+		store.setExcludedNpcIds("11706, 11707");
+		assertEquals("11706, 11707", store.getExcludedNpcIdsRaw());
+	}
+
+	@Test
+	public void parseNpcIdsSkipsBlankAndInvalidTokens()
+	{
+		java.util.Set<Integer> ids = CustomWeaponSfxConfigStore.parseNpcIds(" 11706 ,, abc, 11707,");
+		assertEquals(new java.util.HashSet<>(java.util.Arrays.asList(11706, 11707)), ids);
+
+		assertTrue(CustomWeaponSfxConfigStore.parseNpcIds(null).isEmpty());
+		assertTrue(CustomWeaponSfxConfigStore.parseNpcIds("").isEmpty());
+	}
+
+	@Test
+	public void resetAllUnsetsExcludedNpcIds()
+	{
+		store.setExcludedNpcIds("11706");
+		store.resetAll(java.util.Collections.emptyList(),
+			CustomWeaponSfxPanel.RECEIVED_GROUPS_PREFIX, new ArrayList<>(),
+			CustomWeaponSfxPanel.GLOBAL_WEAPON_GROUPS_PREFIX, new ArrayList<>());
+		assertEquals("", store.getExcludedNpcIdsRaw());
+	}
+
+	@Test
+	public void excludedNpcNamesRoundTripAndDefaultEmpty()
+	{
+		assertEquals("", store.getExcludedNpcNamesRaw());
+
+		store.setExcludedNpcNames("Vorkath, Zulrah");
+		assertEquals("Vorkath, Zulrah", store.getExcludedNpcNamesRaw());
+	}
+
+	@Test
+	public void parseNpcNamesLowercasesTrimsAndSkipsBlanks()
+	{
+		java.util.Set<String> names = CustomWeaponSfxConfigStore.parseNpcNames(" Vorkath ,, ZULRAH,");
+		assertEquals(new java.util.HashSet<>(java.util.Arrays.asList("vorkath", "zulrah")), names);
+
+		assertTrue(CustomWeaponSfxConfigStore.parseNpcNames(null).isEmpty());
+		assertTrue(CustomWeaponSfxConfigStore.parseNpcNames("").isEmpty());
+	}
+
+	@Test
+	public void resetAllUnsetsExcludedNpcNames()
+	{
+		store.setExcludedNpcNames("Vorkath");
+		store.resetAll(java.util.Collections.emptyList(),
+			CustomWeaponSfxPanel.RECEIVED_GROUPS_PREFIX, new ArrayList<>(),
+			CustomWeaponSfxPanel.GLOBAL_WEAPON_GROUPS_PREFIX, new ArrayList<>());
+		assertEquals("", store.getExcludedNpcNamesRaw());
+	}
 }

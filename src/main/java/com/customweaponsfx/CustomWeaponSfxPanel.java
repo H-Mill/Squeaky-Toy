@@ -23,6 +23,7 @@ import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JSlider;
+import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 import net.runelite.client.game.ItemManager;
@@ -53,10 +54,14 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	private final Runnable onReset;
 	private final Runnable onRefreshSounds;
 	private final BiConsumer<SfxOption, Boolean> onOptionToggled;
+	private final Consumer<String> onExcludedNpcIdsChanged;
+	private final Consumer<String> onExcludedNpcNamesChanged;
 
 	private JCheckBox ignoreSmallMaxCheckBox;
 	private JCheckBox ignoreZeroPrayerCheckBox;
 	private JCheckBox ignoreZeroThrallCheckBox;
+	private JTextField excludedNpcIdsField;
+	private JTextField excludedNpcNamesField;
 
 	private final JPanel weaponListPanel;
 	private final JPanel mainContent;
@@ -68,7 +73,9 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		BiConsumer<String, Integer> onTestSound,
 		Runnable onReset,
 		Runnable onRefreshSounds,
-		BiConsumer<SfxOption, Boolean> onOptionToggled)
+		BiConsumer<SfxOption, Boolean> onOptionToggled,
+		Consumer<String> onExcludedNpcIdsChanged,
+		Consumer<String> onExcludedNpcNamesChanged)
 	{
 		this.store = store;
 		this.itemManager = itemManager;
@@ -79,6 +86,8 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		this.onReset = onReset;
 		this.onRefreshSounds = onRefreshSounds;
 		this.onOptionToggled = onOptionToggled;
+		this.onExcludedNpcIdsChanged = onExcludedNpcIdsChanged;
+		this.onExcludedNpcNamesChanged = onExcludedNpcNamesChanged;
 
 		setLayout(new BorderLayout());
 		setBorder(new EmptyBorder(10, 10, 10, 10));
@@ -256,6 +265,21 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		ignoreZeroThrallCheckBox.addActionListener(e -> onOptionToggled.accept(SfxOption.IGNORE_ZERO_THRALL, ignoreZeroThrallCheckBox.isSelected()));
 		content.add(ignoreZeroThrallCheckBox);
 
+		content.add(Box.createVerticalStrut(6));
+		content.add(buildExcludedNpcRow(
+			"Excluded NPC IDs:",
+			"<html>Comma-separated NPC ids whose hitsplats never trigger SFX.<br>"
+				+ "Example: 11706, 11707</html>",
+			store.getExcludedNpcIdsRaw(), onExcludedNpcIdsChanged, f -> excludedNpcIdsField = f));
+
+		content.add(Box.createVerticalStrut(6));
+		content.add(buildExcludedNpcRow(
+			"Excluded NPC Names:",
+			"<html>Comma-separated NPC names whose hitsplats never trigger SFX.<br>"
+				+ "Matching is case-insensitive.<br>"
+				+ "Example: Vorkath, zulrah</html>",
+			store.getExcludedNpcNamesRaw(), onExcludedNpcNamesChanged, f -> excludedNpcNamesField = f));
+
 		section.add(content);
 
 		collapseBtn.addActionListener(e ->
@@ -271,6 +295,40 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		return section;
 	}
 
+	private JPanel buildExcludedNpcRow(String label, String tooltip, String initialValue,
+		Consumer<String> onChange, Consumer<JTextField> fieldSink)
+	{
+		JPanel panel = new JPanel();
+		panel.setLayout(new javax.swing.BoxLayout(panel, javax.swing.BoxLayout.Y_AXIS));
+		panel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+		JLabel lbl = new JLabel(label);
+		lbl.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		lbl.setAlignmentX(Component.LEFT_ALIGNMENT);
+		lbl.setToolTipText(tooltip);
+		panel.add(lbl);
+		panel.add(Box.createVerticalStrut(2));
+
+		JTextField field = new JTextField(initialValue);
+		field.setAlignmentX(Component.LEFT_ALIGNMENT);
+		field.setMaximumSize(new Dimension(Integer.MAX_VALUE, field.getPreferredSize().height));
+		field.setToolTipText(tooltip);
+		field.addActionListener(e -> onChange.accept(field.getText()));
+		field.addFocusListener(new java.awt.event.FocusAdapter()
+		{
+			@Override
+			public void focusLost(java.awt.event.FocusEvent e)
+			{
+				onChange.accept(field.getText());
+			}
+		});
+		panel.add(field);
+
+		fieldSink.accept(field);
+		return panel;
+	}
+
 	public void resetToggles()
 	{
 		SwingUtilities.invokeLater(() ->
@@ -278,6 +336,8 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			if (ignoreSmallMaxCheckBox != null) ignoreSmallMaxCheckBox.setSelected(true);
 			if (ignoreZeroPrayerCheckBox != null) ignoreZeroPrayerCheckBox.setSelected(true);
 			if (ignoreZeroThrallCheckBox != null) ignoreZeroThrallCheckBox.setSelected(true);
+			if (excludedNpcIdsField != null) excludedNpcIdsField.setText("");
+			if (excludedNpcNamesField != null) excludedNpcNamesField.setText("");
 		});
 	}
 

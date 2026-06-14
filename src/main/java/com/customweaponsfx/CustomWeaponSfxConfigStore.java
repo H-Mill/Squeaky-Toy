@@ -1,6 +1,7 @@
 package com.customweaponsfx;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -37,6 +38,8 @@ class CustomWeaponSfxConfigStore
 	}
 
 	private static final String WEAPON_IDS_KEY = "specWeaponIds";
+	private static final String EXCLUDED_NPC_IDS_KEY = "excludedNpcIds";
+	private static final String EXCLUDED_NPC_NAMES_KEY = "excludedNpcNames";
 
 	private static final int DEFAULT_CHANCE = 100;
 	private static final int DEFAULT_VOLUME = 75;
@@ -125,6 +128,63 @@ class CustomWeaponSfxConfigStore
 		backend.set(WEAPON_IDS_KEY, ids);
 	}
 
+	// ----- excluded NPC ids -----------------------------------------------------------------
+
+	/** The raw, user-entered comma-separated NPC id string (empty string if unset). */
+	String getExcludedNpcIdsRaw()
+	{
+		String v = backend.get(EXCLUDED_NPC_IDS_KEY);
+		return v != null ? v : "";
+	}
+
+	void setExcludedNpcIds(String raw)
+	{
+		backend.set(EXCLUDED_NPC_IDS_KEY, raw == null ? "" : raw);
+	}
+
+	/** Parses a comma-separated NPC id string into a set, silently skipping blank/invalid tokens. */
+	static Set<Integer> parseNpcIds(String raw)
+	{
+		Set<Integer> ids = new HashSet<>();
+		if (raw == null) return ids;
+		for (String token : raw.split(","))
+		{
+			Integer id = tryParse(token);
+			if (id != null) ids.add(id);
+		}
+		return ids;
+	}
+
+	// ----- excluded NPC names ---------------------------------------------------------------
+
+	/** The raw, user-entered comma-separated NPC name string (empty string if unset). */
+	String getExcludedNpcNamesRaw()
+	{
+		String v = backend.get(EXCLUDED_NPC_NAMES_KEY);
+		return v != null ? v : "";
+	}
+
+	void setExcludedNpcNames(String raw)
+	{
+		backend.set(EXCLUDED_NPC_NAMES_KEY, raw == null ? "" : raw);
+	}
+
+	/**
+	 * Parses a comma-separated NPC name string into a set of lowercased, trimmed names for
+	 * case-insensitive matching, silently skipping blank tokens.
+	 */
+	static Set<String> parseNpcNames(String raw)
+	{
+		Set<String> names = new HashSet<>();
+		if (raw == null) return names;
+		for (String token : raw.split(","))
+		{
+			String name = token.trim().toLowerCase();
+			if (!name.isEmpty()) names.add(name);
+		}
+		return names;
+	}
+
 	// ----- default sections (received / global) ---------------------------------------------
 
 	List<TriggerGroup> loadDefaultGroups(String prefix)
@@ -165,6 +225,8 @@ class CustomWeaponSfxConfigStore
 	{
 		for (WeaponEntry entry : weapons) removeWeapon(entry);
 		backend.unset(WEAPON_IDS_KEY);
+		backend.unset(EXCLUDED_NPC_IDS_KEY);
+		backend.unset(EXCLUDED_NPC_NAMES_KEY);
 		clearDefaultGroups(receivedPrefix, receivedGroups);
 		clearDefaultGroups(globalPrefix, globalGroups);
 	}

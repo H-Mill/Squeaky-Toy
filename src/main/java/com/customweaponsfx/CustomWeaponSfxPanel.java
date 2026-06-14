@@ -7,6 +7,10 @@ import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.Insets;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
+import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -14,8 +18,11 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 import javax.swing.BorderFactory;
 import javax.swing.Box;
+import javax.swing.BoxLayout;
+import javax.swing.ImageIcon;
 import javax.swing.JOptionPane;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
@@ -28,6 +35,7 @@ import javax.swing.SwingUtilities;
 import javax.swing.border.EmptyBorder;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.ColorScheme;
+import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.LinkBrowser;
 import net.runelite.client.ui.PluginPanel;
 import net.runelite.client.util.AsyncBufferedImage;
@@ -40,6 +48,37 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	static final String RECEIVED_GROUPS_PREFIX = "defaultReceived";
 	static final String GLOBAL_WEAPON_GROUPS_PREFIX = "globalWeapon";
 
+	private static final float TITLE_SIZE = 22f;
+	private static final float SECTION_TITLE_SIZE = 16f;
+
+	private static final ImageIcon DELETE_ICON;
+	private static final ImageIcon DELETE_HOVER_ICON;
+	private static final ImageIcon EDIT_ICON;
+	private static final ImageIcon EDIT_HOVER_ICON;
+	private static final ImageIcon EXPAND_ICON;
+	private static final ImageIcon EXPAND_HOVER_ICON;
+	private static final ImageIcon COLLAPSE_ICON;
+	private static final ImageIcon COLLAPSE_HOVER_ICON;
+
+	static
+	{
+		final BufferedImage deleteImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "delete_icon.png");
+		DELETE_ICON = new ImageIcon(deleteImg);
+		DELETE_HOVER_ICON = new ImageIcon(ImageUtil.luminanceOffset(deleteImg, -100));
+
+		final BufferedImage editImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "edit_icon.png");
+		EDIT_ICON = new ImageIcon(editImg);
+		EDIT_HOVER_ICON = new ImageIcon(ImageUtil.luminanceOffset(editImg, -100));
+
+		// right_arrow = collapsed (click to expand), down_arrow = expanded (click to collapse)
+		final BufferedImage expandImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "right_arrow.png");
+		EXPAND_ICON = new ImageIcon(expandImg);
+		EXPAND_HOVER_ICON = new ImageIcon(ImageUtil.luminanceOffset(expandImg, -100));
+
+		final BufferedImage collapseImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "down_arrow.png");
+		COLLAPSE_ICON = new ImageIcon(collapseImg);
+		COLLAPSE_HOVER_ICON = new ImageIcon(ImageUtil.luminanceOffset(collapseImg, -100));
+	}
 
 	private List<String> bundledSounds = new ArrayList<>();
 	private final Set<Integer> expandedWeapons = new HashSet<>();
@@ -60,6 +99,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	private JCheckBox ignoreSmallMaxCheckBox;
 	private JCheckBox ignoreZeroPrayerCheckBox;
 	private JCheckBox ignoreZeroThrallCheckBox;
+	private JCheckBox dontOverrideGlobalCheckBox;
 	private JTextField excludedNpcIdsField;
 	private JTextField excludedNpcNamesField;
 
@@ -92,11 +132,9 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		setLayout(new BorderLayout());
 		setBorder(new EmptyBorder(10, 10, 10, 10));
 
-		weaponListPanel = new JPanel();
-		weaponListPanel.setLayout(new javax.swing.BoxLayout(weaponListPanel, javax.swing.BoxLayout.Y_AXIS));
+		weaponListPanel = boxColumn(null);
 
-		mainContent = new JPanel();
-		mainContent.setLayout(new javax.swing.BoxLayout(mainContent, javax.swing.BoxLayout.Y_AXIS));
+		mainContent = boxColumn(null);
 		mainContent.add(buildTopPanel());
 		mainContent.add(weaponListPanel);
 
@@ -105,24 +143,26 @@ public class CustomWeaponSfxPanel extends PluginPanel
 
 	private JPanel buildTopPanel()
 	{
-		JPanel top = new JPanel();
-		top.setLayout(new javax.swing.BoxLayout(top, javax.swing.BoxLayout.Y_AXIS));
+		JPanel top = boxColumn(null);
+
+		// Match the Look-and-Feel's default button font so labels read consistently with the buttons.
+		Font buttonFont = new JButton().getFont();
 
 		JLabel title = new JLabel("Custom Weapon SFX");
 		title.setForeground(ColorScheme.BRAND_ORANGE);
-		title.setFont(title.getFont().deriveFont(Font.BOLD, 18f));
+		setBoldFont(title, TITLE_SIZE);
 		title.setAlignmentX(Component.LEFT_ALIGNMENT);
 		top.add(title);
 		top.add(Box.createVerticalStrut(4));
 
 		JLabel customSoundDirections = new JLabel("<html>Want a custom sfx?<br>" +
 				"1. Place <b>.wav</b> files in:</html>");
-		customSoundDirections.setFont(customSoundDirections.getFont().deriveFont(14f));
+		customSoundDirections.setFont(buttonFont);
 		customSoundDirections.setAlignmentX(Component.LEFT_ALIGNMENT);
 		top.add(customSoundDirections);
 
 		JButton folderLink = new JButton("<html><u>.runelite/customweaponsfx/</u></html>");
-		folderLink.setFont(folderLink.getFont().deriveFont(14f));
+		folderLink.setFont(buttonFont);
 		folderLink.setBorderPainted(false);
 		folderLink.setContentAreaFilled(false);
 		folderLink.setFocusPainted(false);
@@ -134,13 +174,13 @@ public class CustomWeaponSfxPanel extends PluginPanel
 
 		JLabel customSoundDirections2 = new JLabel("<html>2. Click Refresh Sounds<br>" +
 				"3. Click an Add method below and configure it</html>");
-		customSoundDirections2.setFont(customSoundDirections2.getFont().deriveFont(14f));
+		customSoundDirections2.setFont(buttonFont);
 		customSoundDirections2.setAlignmentX(Component.LEFT_ALIGNMENT);
 		top.add(customSoundDirections2);
 		top.add(Box.createVerticalStrut(8));
 
 		JPanel btnRow = new JPanel();
-		btnRow.setLayout(new javax.swing.BoxLayout(btnRow, javax.swing.BoxLayout.X_AXIS));
+		btnRow.setLayout(new BoxLayout(btnRow, BoxLayout.X_AXIS));
 		btnRow.setAlignmentX(Component.LEFT_ALIGNMENT);
 
 		JButton addSearchBtn = new JButton("Add (Search)");
@@ -159,7 +199,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		top.add(Box.createVerticalStrut(4));
 
 		JPanel refreshRow = new JPanel();
-		refreshRow.setLayout(new javax.swing.BoxLayout(refreshRow, javax.swing.BoxLayout.X_AXIS));
+		refreshRow.setLayout(new BoxLayout(refreshRow, BoxLayout.X_AXIS));
 		refreshRow.setAlignmentX(Component.LEFT_ALIGNMENT);
 
 		JButton refreshSoundsBtn = new JButton("Refresh Sounds");
@@ -171,7 +211,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		top.add(Box.createVerticalStrut(4));
 
 		JPanel resetRow = new JPanel();
-		resetRow.setLayout(new javax.swing.BoxLayout(resetRow, javax.swing.BoxLayout.X_AXIS));
+		resetRow.setLayout(new BoxLayout(resetRow, BoxLayout.X_AXIS));
 		resetRow.setAlignmentX(Component.LEFT_ALIGNMENT);
 
 		JButton resetBtn = new JButton("Reset All Data");
@@ -179,14 +219,8 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		resetBtn.setToolTipText("Wipe all saved weapon entries and sound groups, then restore defaults");
 		resetBtn.addActionListener(e ->
 		{
-			int confirm = JOptionPane.showConfirmDialog(
-				this,
-				"Reset all weapons and sound groups back to defaults?",
-				"Reset All Data",
-				JOptionPane.YES_NO_OPTION,
-				JOptionPane.WARNING_MESSAGE
-			);
-			if (confirm == JOptionPane.YES_OPTION) onReset.run();
+			if (confirmYesNo("Reset all weapons and sound groups back to defaults?", "Reset All Data"))
+				onReset.run();
 		});
 		resetRow.add(resetBtn);
 
@@ -200,70 +234,54 @@ public class CustomWeaponSfxPanel extends PluginPanel
 
 	private JPanel buildTogglesSection()
 	{
-		JPanel section = new JPanel();
-		section.setLayout(new javax.swing.BoxLayout(section, javax.swing.BoxLayout.Y_AXIS));
-		section.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		JPanel section = boxColumn(ColorScheme.DARKER_GRAY_COLOR);
 		section.setBorder(BorderFactory.createCompoundBorder(
 			BorderFactory.createLineBorder(ColorScheme.MEDIUM_GRAY_COLOR),
 			new EmptyBorder(4, 6, 4, 6)
 		));
-		section.setAlignmentX(Component.LEFT_ALIGNMENT);
 
 		JPanel headerRow = new JPanel(new BorderLayout(6, 0));
 		headerRow.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		headerRow.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-		JButton collapseBtn = new JButton("▶");
-		collapseBtn.setMargin(new java.awt.Insets(2, 4, 2, 4));
-		collapseBtn.setToolTipText("Expand");
+		JButton collapseBtn = makeCollapseButton(true);
 		headerRow.add(collapseBtn, BorderLayout.WEST);
 
 		JLabel headerLabel = new JLabel("Options");
 		headerLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-		headerLabel.setFont(headerLabel.getFont().deriveFont(Font.BOLD, 11f));
+		headerLabel.setToolTipText("<html>Global settings that filter out unwanted SFX and let you<br>"
+			+ "exclude specific NPCs from triggering sounds.</html>");
+		setBoldFont(headerLabel, SECTION_TITLE_SIZE);
 		headerRow.add(headerLabel, BorderLayout.CENTER);
 
 		section.add(headerRow);
 
-		JPanel content = new JPanel();
-		content.setLayout(new javax.swing.BoxLayout(content, javax.swing.BoxLayout.Y_AXIS));
-		content.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		content.setAlignmentX(Component.LEFT_ALIGNMENT);
+		JPanel content = boxColumn(ColorScheme.DARKER_GRAY_COLOR);
 		content.setVisible(false);
 
 		content.add(Box.createVerticalStrut(4));
 
-		boolean ignoreSmallMaxHits = store.getBool(SfxOption.IGNORE_SMALL_MAX.configKey(), SfxOption.IGNORE_SMALL_MAX.defaultValue());
-		ignoreSmallMaxCheckBox = new JCheckBox("Ignore max hits ≤ 3", ignoreSmallMaxHits);
-		ignoreSmallMaxCheckBox.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-		ignoreSmallMaxCheckBox.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		ignoreSmallMaxCheckBox.setToolTipText("<html>When enabled, max hit SFX will not play if the hit<br>"
-			+ "damage is 3 or less. Prevents thrall max hits from<br>"
-			+ "triggering max hit sounds.</html>");
-		ignoreSmallMaxCheckBox.setAlignmentX(Component.LEFT_ALIGNMENT);
-		ignoreSmallMaxCheckBox.addActionListener(e -> onOptionToggled.accept(SfxOption.IGNORE_SMALL_MAX, ignoreSmallMaxCheckBox.isSelected()));
+		ignoreSmallMaxCheckBox = buildOptionCheckBox(SfxOption.IGNORE_SMALL_MAX, "Ignore max hits ≤ 3",
+			"<html>When enabled, max hit SFX will not play if the hit<br>"
+				+ "damage is 3 or less. Prevents thrall max hits from<br>"
+				+ "triggering max hit sounds.</html>");
 		content.add(ignoreSmallMaxCheckBox);
 
-		boolean ignoreReceivedZeroWithPrayer = store.getBool(SfxOption.IGNORE_RECEIVED_ZERO_PRAYER.configKey(), SfxOption.IGNORE_RECEIVED_ZERO_PRAYER.defaultValue());
-		ignoreZeroPrayerCheckBox = new JCheckBox("Ignore zeroes with prayer", ignoreReceivedZeroWithPrayer);
-		ignoreZeroPrayerCheckBox.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-		ignoreZeroPrayerCheckBox.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		ignoreZeroPrayerCheckBox.setToolTipText("<html>When enabled, the Received Attacks 'Regular zero'<br>"
-			+ "trigger will not fire while Protect from Melee,<br>"
-			+ "Protect from Ranged, or Protect from Magic is active.</html>");
-		ignoreZeroPrayerCheckBox.setAlignmentX(Component.LEFT_ALIGNMENT);
-		ignoreZeroPrayerCheckBox.addActionListener(e -> onOptionToggled.accept(SfxOption.IGNORE_RECEIVED_ZERO_PRAYER, ignoreZeroPrayerCheckBox.isSelected()));
+		ignoreZeroPrayerCheckBox = buildOptionCheckBox(SfxOption.IGNORE_RECEIVED_ZERO_PRAYER, "Ignore zeroes with prayer",
+			"<html>When enabled, the Received Attacks 'Regular zero'<br>"
+				+ "trigger will not fire while Protect from Melee,<br>"
+				+ "Protect from Ranged, or Protect from Magic is active.</html>");
 		content.add(ignoreZeroPrayerCheckBox);
 
-		boolean ignoreZeroWhileThrallActive = store.getBool(SfxOption.IGNORE_ZERO_THRALL.configKey(), SfxOption.IGNORE_ZERO_THRALL.defaultValue());
-		ignoreZeroThrallCheckBox = new JCheckBox("Ignore zeroes with thrall", ignoreZeroWhileThrallActive);
-		ignoreZeroThrallCheckBox.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-		ignoreZeroThrallCheckBox.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		ignoreZeroThrallCheckBox.setToolTipText("<html>When enabled, zero-damage triggers will not fire<br>"
-			+ "while a thrall is active.</html>");
-		ignoreZeroThrallCheckBox.setAlignmentX(Component.LEFT_ALIGNMENT);
-		ignoreZeroThrallCheckBox.addActionListener(e -> onOptionToggled.accept(SfxOption.IGNORE_ZERO_THRALL, ignoreZeroThrallCheckBox.isSelected()));
+		ignoreZeroThrallCheckBox = buildOptionCheckBox(SfxOption.IGNORE_ZERO_THRALL, "Ignore zeroes with thrall",
+			"<html>When enabled, zero-damage triggers will not fire<br>"
+				+ "while a thrall is active.</html>");
 		content.add(ignoreZeroThrallCheckBox);
+
+		dontOverrideGlobalCheckBox = buildOptionCheckBox(SfxOption.DONT_OVERRIDE_GLOBAL, "Don't override Global",
+			"<html>When enabled, weapon-specific triggers no longer override<br>"
+				+ "the matching Global (All Weapons) triggers — both sounds play.</html>");
+		content.add(dontOverrideGlobalCheckBox);
 
 		content.add(Box.createVerticalStrut(6));
 		content.add(buildExcludedNpcRow(
@@ -286,8 +304,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		{
 			boolean nowVisible = content.isVisible();
 			content.setVisible(!nowVisible);
-			collapseBtn.setText(nowVisible ? "▶" : "▼");
-			collapseBtn.setToolTipText(nowVisible ? "Expand" : "Minimize");
+			applyCollapseState(collapseBtn, nowVisible);
 			section.revalidate();
 			section.repaint();
 		});
@@ -295,13 +312,21 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		return section;
 	}
 
+	private JCheckBox buildOptionCheckBox(SfxOption option, String label, String tooltip)
+	{
+		JCheckBox box = new JCheckBox(label, store.getBool(option));
+		box.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		box.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		box.setToolTipText(tooltip);
+		box.setAlignmentX(Component.LEFT_ALIGNMENT);
+		box.addActionListener(e -> onOptionToggled.accept(option, box.isSelected()));
+		return box;
+	}
+
 	private JPanel buildExcludedNpcRow(String label, String tooltip, String initialValue,
 		Consumer<String> onChange, Consumer<JTextField> fieldSink)
 	{
-		JPanel panel = new JPanel();
-		panel.setLayout(new javax.swing.BoxLayout(panel, javax.swing.BoxLayout.Y_AXIS));
-		panel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+		JPanel panel = boxColumn(ColorScheme.DARKER_GRAY_COLOR);
 
 		JLabel lbl = new JLabel(label);
 		lbl.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
@@ -315,10 +340,10 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		field.setMaximumSize(new Dimension(Integer.MAX_VALUE, field.getPreferredSize().height));
 		field.setToolTipText(tooltip);
 		field.addActionListener(e -> onChange.accept(field.getText()));
-		field.addFocusListener(new java.awt.event.FocusAdapter()
+		field.addFocusListener(new FocusAdapter()
 		{
 			@Override
-			public void focusLost(java.awt.event.FocusEvent e)
+			public void focusLost(FocusEvent e)
 			{
 				onChange.accept(field.getText());
 			}
@@ -336,6 +361,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			if (ignoreSmallMaxCheckBox != null) ignoreSmallMaxCheckBox.setSelected(true);
 			if (ignoreZeroPrayerCheckBox != null) ignoreZeroPrayerCheckBox.setSelected(true);
 			if (ignoreZeroThrallCheckBox != null) ignoreZeroThrallCheckBox.setSelected(true);
+			if (dontOverrideGlobalCheckBox != null) dontOverrideGlobalCheckBox.setSelected(false);
 			if (excludedNpcIdsField != null) excludedNpcIdsField.setText("");
 			if (excludedNpcNamesField != null) excludedNpcNamesField.setText("");
 		});
@@ -350,12 +376,21 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			weaponListPanel.removeAll();
 
 			weaponListPanel.add(buildDefaultRowGroups(
-				"Received Attacks", RECEIVED_GROUPS_PREFIX, receivedGroups, availableSounds,
+				"Received Attacks", "<html>Sounds that play when <b>you take a hit</b>, regardless of which<br>"
+					+ "weapon you have equipped. Configure sound groups and triggers<br>"
+					+ "for incoming attacks here.</html>",
+				RECEIVED_GROUPS_PREFIX, receivedGroups, availableSounds,
 				EnumSet.of(Triggers.REGULAR_ZERO, Triggers.REGULAR_HIT, Triggers.ALL, Triggers.PLAYER_DEATH), SfxOption.RECEIVED_ENABLED));
 			weaponListPanel.add(Box.createVerticalStrut(4));
 
 			weaponListPanel.add(buildDefaultRowGroups(
-				"Global (All Weapons)", GLOBAL_WEAPON_GROUPS_PREFIX, globalWeaponGroups, availableSounds,
+				"Global (All Weapons)", "<html>Sounds that play for <b>every weapon</b> you attack with,<br>"
+					+ "in addition to any weapon-specific sounds configured below.<br><br>"
+					+ "<b>Note:</b> if the equipped weapon has its own sound group for a<br>"
+					+ "trigger, that weapon <b>overrides</b> the global sound for that trigger —<br>"
+					+ "they do not stack (unless <b>Don't override Global</b> in the Options<br>"
+					+ "section is enabled.</html>",
+				GLOBAL_WEAPON_GROUPS_PREFIX, globalWeaponGroups, availableSounds,
 				EnumSet.complementOf(EnumSet.of(Triggers.REGULAR_HIT, Triggers.PLAYER_DEATH)), SfxOption.GLOBAL_ENABLED));
 			weaponListPanel.add(Box.createVerticalStrut(4));
 
@@ -371,76 +406,32 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		});
 	}
 
-	private JPanel buildDefaultRowGroups(String label, String prefix,
+	private JPanel buildDefaultRowGroups(String label, String tooltip, String prefix,
 		List<TriggerGroup> groups, List<String> availableSounds, Set<Triggers> visibleTriggers,
 		SfxOption enabledOption)
 	{
-		boolean collapsed = !expandedDefaults.contains(prefix);
-
-		JPanel panel = new JPanel();
-		panel.setLayout(new javax.swing.BoxLayout(panel, javax.swing.BoxLayout.Y_AXIS));
-		panel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		panel.setBorder(BorderFactory.createCompoundBorder(
-			BorderFactory.createLineBorder(ColorScheme.BRAND_ORANGE),
-			new EmptyBorder(6, 6, 6, 6)
-		));
-
-		JPanel headerRow = new JPanel(new BorderLayout(6, 0));
-		headerRow.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		headerRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-		JButton collapseBtn = new JButton(collapsed ? "▶" : "▼");
-		collapseBtn.setMargin(new java.awt.Insets(2, 4, 2, 4));
-		collapseBtn.setToolTipText(collapsed ? "Expand" : "Minimize");
-		headerRow.add(collapseBtn, BorderLayout.WEST);
-
 		JLabel nameLabel = new JLabel(label);
 		nameLabel.setForeground(ColorScheme.BRAND_ORANGE);
-		nameLabel.setFont(nameLabel.getFont().deriveFont(Font.BOLD, 12f));
-		headerRow.add(nameLabel, BorderLayout.CENTER);
+		nameLabel.setToolTipText(tooltip);
+		setBoldFont(nameLabel, SECTION_TITLE_SIZE);
 
+		List<Component> eastControls = new ArrayList<>();
 		if (enabledOption != null)
 		{
-			boolean enabled = store.getBool(enabledOption.configKey(), enabledOption.defaultValue());
 			JCheckBox enabledBox = new JCheckBox();
-			enabledBox.setSelected(enabled);
+			enabledBox.setSelected(store.getBool(enabledOption));
 			enabledBox.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 			enabledBox.setToolTipText("Enable or disable this section");
 			enabledBox.addActionListener(e -> onOptionToggled.accept(enabledOption, enabledBox.isSelected()));
-			headerRow.add(enabledBox, BorderLayout.EAST);
+			eastControls.add(enabledBox);
 		}
 
-		panel.add(headerRow);
-
-		Component strut = Box.createVerticalStrut(6);
-		strut.setVisible(!collapsed);
-		panel.add(strut);
-
-		JPanel groupsHolder = new JPanel();
-		groupsHolder.setLayout(new javax.swing.BoxLayout(groupsHolder, javax.swing.BoxLayout.Y_AXIS));
-		groupsHolder.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		groupsHolder.setAlignmentX(Component.LEFT_ALIGNMENT);
-		groupsHolder.setVisible(!collapsed);
-		rebuildGroupsSection(groupsHolder, groups, availableSounds,
+		return buildCollapsibleGroupsPanel(
+			expandedDefaults, prefix,
+			ColorScheme.DARKER_GRAY_COLOR, ColorScheme.BRAND_ORANGE,
+			null, nameLabel, eastControls, 0,
+			groups, availableSounds,
 			() -> store.saveDefaultGroups(prefix, groups), visibleTriggers);
-		panel.add(groupsHolder);
-
-		collapseBtn.addActionListener(e ->
-		{
-			boolean nowCollapsed = expandedDefaults.contains(prefix);
-			if (nowCollapsed)
-				expandedDefaults.remove(prefix);
-			else
-				expandedDefaults.add(prefix);
-			collapseBtn.setText(nowCollapsed ? "▶" : "▼");
-			collapseBtn.setToolTipText(nowCollapsed ? "Expand" : "Minimize");
-			strut.setVisible(!nowCollapsed);
-			groupsHolder.setVisible(!nowCollapsed);
-			panel.revalidate();
-			panel.repaint();
-		});
-
-		return panel;
 	}
 
 	private static final Color ROW_COLOR_A = ColorScheme.DARKER_GRAY_COLOR;
@@ -449,53 +440,20 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	private JPanel buildRow(WeaponEntry entry, List<String> availableSounds, int index)
 	{
 		Color bg = (index % 2 == 0) ? ROW_COLOR_A : ROW_COLOR_B;
-		boolean collapsed = !expandedWeapons.contains(entry.getItemId());
 
-		JPanel panel = new JPanel();
-		panel.setLayout(new javax.swing.BoxLayout(panel, javax.swing.BoxLayout.Y_AXIS));
-		panel.setBackground(bg);
-		panel.setBorder(BorderFactory.createCompoundBorder(
-			BorderFactory.createLineBorder(ColorScheme.MEDIUM_GRAY_COLOR),
-			new EmptyBorder(6, 6, 6, 6)
-		));
-
-		JPanel headerRow = new JPanel(new BorderLayout(6, 0));
-		headerRow.setBackground(bg);
-		headerRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-		headerRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, 36));
-
-		JButton collapseBtn = new JButton(collapsed ? "▶" : "▼");
-		collapseBtn.setMargin(new java.awt.Insets(2, 4, 2, 4));
-		collapseBtn.setToolTipText(collapsed ? "Expand" : "Minimize");
-
-		JPanel westBlock = new JPanel(new BorderLayout(4, 0));
-		westBlock.setBackground(bg);
 		JLabel iconLabel = new JLabel();
 		iconLabel.setPreferredSize(new Dimension(32, 32));
+		iconLabel.setToolTipText(entry.getWeaponName());
 		AsyncBufferedImage icon = itemManager.getImage(entry.getItemId());
 		if (icon != null)
 		{
 			icon.addTo(iconLabel);
 		}
-		westBlock.add(collapseBtn, BorderLayout.WEST);
-		westBlock.add(iconLabel, BorderLayout.EAST);
-		headerRow.add(westBlock, BorderLayout.WEST);
-
-		JPanel nameBlock = new JPanel();
-		nameBlock.setLayout(new javax.swing.BoxLayout(nameBlock, javax.swing.BoxLayout.Y_AXIS));
-		nameBlock.setBackground(bg);
 
 		JLabel nameLabel = new JLabel(entry.getWeaponName());
 		nameLabel.setForeground(entry.isEnabled() ? Color.WHITE : Color.GRAY);
-		nameLabel.setFont(nameLabel.getFont().deriveFont(Font.BOLD, 12f));
-		nameBlock.add(Box.createVerticalGlue());
-		nameBlock.add(nameLabel);
-		nameBlock.add(Box.createVerticalGlue());
-
-		headerRow.add(nameBlock, BorderLayout.CENTER);
-
-		JPanel eastBlock = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
-		eastBlock.setBackground(bg);
+		setBoldFont(nameLabel, SECTION_TITLE_SIZE);
+		nameLabel.setToolTipText(entry.getWeaponName());
 
 		JCheckBox enabledBox = new JCheckBox();
 		enabledBox.setSelected(entry.isEnabled());
@@ -507,26 +465,80 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			nameLabel.setForeground(entry.isEnabled() ? Color.WHITE : Color.GRAY);
 			store.saveWeaponEnabled(entry.getItemId(), entry.isEnabled());
 		});
-		eastBlock.add(enabledBox);
 
-		JButton removeBtn = new JButton("✕");
-		removeBtn.setMargin(new java.awt.Insets(2, 5, 2, 5));
-		removeBtn.setForeground(Color.RED);
-		removeBtn.setToolTipText("Remove weapon");
+		JButton removeBtn = makeRemoveButton("Remove weapon");
 		removeBtn.addActionListener(e ->
 		{
-			int confirm = JOptionPane.showConfirmDialog(
-				this,
-				"Remove " + entry.getWeaponName() + " and all its sound groups?",
-				"Remove Weapon",
-				JOptionPane.YES_NO_OPTION,
-				JOptionPane.WARNING_MESSAGE
-			);
-			if (confirm == JOptionPane.YES_OPTION) onRemoveWeapon.accept(entry.getItemId());
+			if (confirmYesNo("Remove " + entry.getWeaponName() + " and all its sound groups?", "Remove Weapon"))
+				onRemoveWeapon.accept(entry.getItemId());
 		});
-		eastBlock.add(removeBtn);
 
-		headerRow.add(eastBlock, BorderLayout.EAST);
+		List<Component> eastControls = new ArrayList<>();
+		eastControls.add(enabledBox);
+		eastControls.add(removeBtn);
+
+		return buildCollapsibleGroupsPanel(
+			expandedWeapons, entry.getItemId(),
+			bg, ColorScheme.MEDIUM_GRAY_COLOR,
+			iconLabel, nameLabel, eastControls, 36,
+			entry.getGroups(), availableSounds,
+			() -> store.saveWeaponGroups(entry),
+			EnumSet.complementOf(EnumSet.of(Triggers.REGULAR_HIT, Triggers.PLAYER_DEATH)));
+	}
+
+	/**
+	 * Builds a bordered, collapsible panel whose body is a {@link #rebuildGroupsSection} list of
+	 * sound groups. Shared by the weapon rows and the Received/Global default sections; the only
+	 * differences are the colours, the optional leading icon, the header's east controls, and which
+	 * expansion set tracks the collapsed state (keyed by {@code key}).
+	 */
+	private <T> JPanel buildCollapsibleGroupsPanel(
+		Set<T> expandedSet, T key,
+		Color bg, Color borderColor,
+		Component westLeading,
+		JLabel nameLabel,
+		List<Component> eastControls,
+		int headerMaxHeight,
+		List<TriggerGroup> groups, List<String> availableSounds,
+		Runnable onSave, Set<Triggers> visibleTriggers)
+	{
+		boolean collapsed = !expandedSet.contains(key);
+
+		JPanel panel = boxColumn(bg);
+		panel.setBorder(BorderFactory.createCompoundBorder(
+			BorderFactory.createLineBorder(borderColor),
+			new EmptyBorder(6, 6, 6, 6)
+		));
+
+		JPanel headerRow = new JPanel(new BorderLayout(6, 0));
+		headerRow.setBackground(bg);
+		headerRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+		if (headerMaxHeight > 0)
+			headerRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, headerMaxHeight));
+
+		JButton collapseBtn = makeCollapseButton(collapsed);
+		if (westLeading != null)
+		{
+			JPanel westBlock = new JPanel(new BorderLayout(4, 0));
+			westBlock.setBackground(bg);
+			westBlock.add(collapseBtn, BorderLayout.WEST);
+			westBlock.add(westLeading, BorderLayout.EAST);
+			headerRow.add(westBlock, BorderLayout.WEST);
+		}
+		else
+		{
+			headerRow.add(collapseBtn, BorderLayout.WEST);
+		}
+
+		headerRow.add(nameLabel, BorderLayout.CENTER);
+
+		if (eastControls != null && !eastControls.isEmpty())
+		{
+			JPanel eastBlock = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
+			eastBlock.setBackground(bg);
+			for (Component c : eastControls) eastBlock.add(c);
+			headerRow.add(eastBlock, BorderLayout.EAST);
+		}
 
 		panel.add(headerRow);
 
@@ -534,25 +546,19 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		strut.setVisible(!collapsed);
 		panel.add(strut);
 
-		JPanel groupsHolder = new JPanel();
-		groupsHolder.setLayout(new javax.swing.BoxLayout(groupsHolder, javax.swing.BoxLayout.Y_AXIS));
-		groupsHolder.setBackground(bg);
-		groupsHolder.setAlignmentX(Component.LEFT_ALIGNMENT);
+		JPanel groupsHolder = boxColumn(bg);
 		groupsHolder.setVisible(!collapsed);
-		rebuildGroupsSection(groupsHolder, entry.getGroups(), availableSounds,
-			() -> store.saveWeaponGroups(entry),
-			EnumSet.complementOf(EnumSet.of(Triggers.REGULAR_HIT, Triggers.PLAYER_DEATH)));
+		rebuildGroupsSection(groupsHolder, groups, availableSounds, onSave, visibleTriggers);
 		panel.add(groupsHolder);
 
 		collapseBtn.addActionListener(e ->
 		{
-			boolean nowCollapsed = expandedWeapons.contains(entry.getItemId());
+			boolean nowCollapsed = expandedSet.contains(key);
 			if (nowCollapsed)
-				expandedWeapons.remove(entry.getItemId());
+				expandedSet.remove(key);
 			else
-				expandedWeapons.add(entry.getItemId());
-			collapseBtn.setText(nowCollapsed ? "▶" : "▼");
-			collapseBtn.setToolTipText(nowCollapsed ? "Expand" : "Minimize");
+				expandedSet.add(key);
+			applyCollapseState(collapseBtn, nowCollapsed);
 			strut.setVisible(!nowCollapsed);
 			groupsHolder.setVisible(!nowCollapsed);
 			panel.revalidate();
@@ -572,14 +578,11 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			final int idx = i;
 			TriggerGroup group = groups.get(i);
 
-			JPanel groupPanel = new JPanel();
-			groupPanel.setLayout(new javax.swing.BoxLayout(groupPanel, javax.swing.BoxLayout.Y_AXIS));
-			groupPanel.setBackground(ColorScheme.DARK_GRAY_COLOR);
+			JPanel groupPanel = boxColumn(ColorScheme.DARK_GRAY_COLOR);
 			groupPanel.setBorder(BorderFactory.createCompoundBorder(
 				BorderFactory.createLineBorder(ColorScheme.MEDIUM_GRAY_COLOR),
 				new EmptyBorder(4, 4, 4, 4)
 			));
-			groupPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
 			JPanel groupHeader = new JPanel(new BorderLayout());
 			groupHeader.setBackground(ColorScheme.DARK_GRAY_COLOR);
@@ -588,15 +591,18 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			String groupName = group.getName() != null ? group.getName() : "Sound Group " + (i + 1);
 			JLabel groupLabel = new JLabel(groupName);
 			groupLabel.setForeground(ColorScheme.BRAND_ORANGE);
-			groupLabel.setFont(groupLabel.getFont().deriveFont(Font.BOLD, 11f));
+			groupLabel.setToolTipText("<html>A sound group plays when its triggers are met. If the group has<br>"
+				+ "multiple sounds, one of them is chosen at random to play.<br><br>"
+				+ "You can add multiple sound groups — if several groups share<br>"
+				+ "overlapping triggers, they all play. Use separate groups for<br>"
+				+ "different triggers, or to stack multiple sounds on the same trigger.</html>");
+			setBoldFont(groupLabel, SECTION_TITLE_SIZE);
 			groupHeader.add(groupLabel, BorderLayout.WEST);
 
 			JPanel headerButtons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 2, 0));
 			headerButtons.setBackground(ColorScheme.DARK_GRAY_COLOR);
 
-			JButton renameGroupBtn = new JButton("✎");
-			renameGroupBtn.setMargin(new java.awt.Insets(2, 5, 2, 5));
-			renameGroupBtn.setToolTipText("Rename sound group");
+			JButton renameGroupBtn = makeImageButton(EDIT_ICON, EDIT_HOVER_ICON, "Rename sound group");
 			renameGroupBtn.addActionListener(e ->
 			{
 				String input = JOptionPane.showInputDialog(this, "Group name:", groupName);
@@ -621,20 +627,10 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			});
 			headerButtons.add(renameGroupBtn);
 
-			JButton removeGroupBtn = new JButton("✕");
-			removeGroupBtn.setMargin(new java.awt.Insets(2, 5, 2, 5));
-			removeGroupBtn.setForeground(Color.RED);
-			removeGroupBtn.setToolTipText("Remove sound group");
+			JButton removeGroupBtn = makeRemoveButton("Remove sound group");
 			removeGroupBtn.addActionListener(e ->
 			{
-				int confirm = JOptionPane.showConfirmDialog(
-					this,
-					"Remove \"" + groupName + "\"?",
-					"Remove Sound Group",
-					JOptionPane.YES_NO_OPTION,
-					JOptionPane.WARNING_MESSAGE
-				);
-				if (confirm != JOptionPane.YES_OPTION) return;
+				if (!confirmYesNo("Remove \"" + groupName + "\"?", "Remove Sound Group")) return;
 				groups.remove(idx);
 				onSave.run();
 				rebuildGroupsSection(holder, groups, availableSounds, onSave, visibleTriggers);
@@ -643,15 +639,14 @@ public class CustomWeaponSfxPanel extends PluginPanel
 
 			groupHeader.add(headerButtons, BorderLayout.EAST);
 
-			JPanel soundsHolder = new JPanel();
-			soundsHolder.setLayout(new javax.swing.BoxLayout(soundsHolder, javax.swing.BoxLayout.Y_AXIS));
-			soundsHolder.setBackground(ColorScheme.DARK_GRAY_COLOR);
-			soundsHolder.setAlignmentX(Component.LEFT_ALIGNMENT);
+			JPanel soundsHolder = boxColumn(ColorScheme.DARK_GRAY_COLOR);
 			rebuildSoundsHolder(soundsHolder, group, availableSounds, onSave);
 
 			groupPanel.add(groupHeader);
 			groupPanel.add(Box.createVerticalStrut(4));
-			groupPanel.add(buildChanceRowGroup(group, onSave));
+			groupPanel.add(buildSliderRow("Chance:",
+				"Probability that this sound group plays when its trigger fires (100 = always, 0 = never)",
+				group.getChance(), v -> { group.setChance(v); onSave.run(); }));
 			groupPanel.add(Box.createVerticalStrut(4));
 			groupPanel.add(soundsHolder);
 			groupPanel.add(Box.createVerticalStrut(4));
@@ -684,10 +679,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 
 	private JPanel buildTriggersPanel(Set<Triggers> enabledTriggers, Runnable onSave, Set<Triggers> visibleTriggers)
 	{
-		JPanel panel = new JPanel();
-		panel.setLayout(new javax.swing.BoxLayout(panel, javax.swing.BoxLayout.Y_AXIS));
-		panel.setBackground(ColorScheme.DARK_GRAY_COLOR);
-		panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+		JPanel panel = boxColumn(ColorScheme.DARK_GRAY_COLOR);
 
 		JLabel lbl = new JLabel("Triggers:");
 		lbl.setForeground(Color.WHITE);
@@ -702,6 +694,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			JCheckBox box = new JCheckBox(trigger.getName());
 			box.setForeground(Color.LIGHT_GRAY);
 			box.setBackground(ColorScheme.DARK_GRAY_COLOR);
+			box.setToolTipText(triggerTooltip(trigger));
 			box.setSelected(enabledTriggers.contains(trigger));
 			box.setAlignmentX(Component.LEFT_ALIGNMENT);
 			box.addActionListener(e ->
@@ -716,6 +709,34 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		return panel;
 	}
 
+	/** A short description of when each trigger fires, shown as the trigger checkbox's tooltip. */
+	private static String triggerTooltip(Triggers trigger)
+	{
+		switch (trigger)
+		{
+			case REGULAR_ZERO:
+				return "Fires when a regular (non-special) attack deals 0 damage";
+			case REGULAR_HIT:
+				return "Fires when a regular (non-special) attack deals 1 or more damage";
+			case REGULAR_MAX:
+				return "Fires when a regular (non-special) attack deals your maximum possible hit";
+			case SPECIAL_ZERO:
+				return "Fires when a special attack deals 0 damage";
+			case SPECIAL_HIT:
+				return "Fires when a special attack deals 1 or more damage";
+			case SPECIAL_MAX:
+				return "Fires when a special attack deals your maximum possible hit";
+			case ALL:
+				return "Fires on every attack, regardless of the outcome";
+			case KILL:
+				return "Fires when your attack kills the target";
+			case PLAYER_DEATH:
+				return "Fires when you die";
+			default:
+				return null;
+		}
+	}
+
 	private void rebuildSoundsHolder(JPanel holder, TriggerGroup group,
 		List<String> availableSounds, Runnable onSave)
 	{
@@ -727,9 +748,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			final int idx = j;
 			SoundEntry se = sounds.get(j);
 
-			JPanel soundRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
-			soundRow.setBackground(ColorScheme.DARK_GRAY_COLOR);
-			soundRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+			JPanel soundRow = flowRow(ColorScheme.DARK_GRAY_COLOR);
 			JLabel lbl = new JLabel("Sound:");
 			lbl.setForeground(Color.WHITE);
 			lbl.setToolTipText("Sound file to play. Built-in sounds are bundled with the plugin; custom sounds load from .runelite/customweaponsfx/");
@@ -746,19 +765,14 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			});
 			soundRow.add(box);
 
-			JButton testBtn = new JButton("▶");
-			testBtn.setMargin(new java.awt.Insets(2, 5, 2, 5));
-			testBtn.setToolTipText("Test sound");
+			JButton testBtn = makeIconButton("▶", "Test sound");
 			testBtn.addActionListener(e -> onTestSound.accept(
 				displayToConfig((String) box.getSelectedItem()), se.getVolume()));
 			soundRow.add(testBtn);
 
 			if (sounds.size() > 1)
 			{
-				JButton removeBtn = new JButton("✕");
-				removeBtn.setMargin(new java.awt.Insets(2, 4, 2, 4));
-				removeBtn.setForeground(Color.RED);
-				removeBtn.setToolTipText("Remove this sound");
+				JButton removeBtn = makeRemoveButton("Remove this sound");
 				removeBtn.addActionListener(e ->
 				{
 					sounds.remove(idx);
@@ -769,7 +783,9 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			}
 
 			holder.add(soundRow);
-			holder.add(buildVolumeSoundEntry(se, onSave));
+			holder.add(buildSliderRow("Volume:",
+				"Playback volume for this sound (0 = silent, 100 = full volume)",
+				se.getVolume(), v -> { se.setVolume(v); onSave.run(); }));
 
 			if (j < sounds.size() - 1)
 				holder.add(Box.createVerticalStrut(4));
@@ -791,18 +807,17 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		holder.repaint();
 	}
 
-	private JPanel buildVolumeSoundEntry(SoundEntry se, Runnable onSave)
+	/** A label + 0–100 slider + live "%" readout row; commits via {@code onCommit} on release. */
+	private JPanel buildSliderRow(String label, String tooltip, int initial, IntConsumer onCommit)
 	{
-		JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
-		row.setBackground(ColorScheme.DARK_GRAY_COLOR);
-		row.setAlignmentX(Component.LEFT_ALIGNMENT);
-		JLabel lbl = new JLabel("Volume:");
+		JPanel row = flowRow(ColorScheme.DARK_GRAY_COLOR);
+		JLabel lbl = new JLabel(label);
 		lbl.setForeground(Color.WHITE);
-		lbl.setToolTipText("Playback volume for this sound (0 = silent, 100 = full volume)");
+		lbl.setToolTipText(tooltip);
 		row.add(lbl);
-		JSlider slider = new JSlider(0, 100, se.getVolume());
+		JSlider slider = new JSlider(0, 100, initial);
 		slider.setPreferredSize(new Dimension(100, 20));
-		JLabel val = new JLabel(se.getVolume() + "%");
+		JLabel val = new JLabel(initial + "%");
 		val.setForeground(Color.LIGHT_GRAY);
 		slider.addChangeListener(e ->
 		{
@@ -810,36 +825,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			val.setText(v + "%");
 			if (!slider.getValueIsAdjusting())
 			{
-				se.setVolume(v);
-				onSave.run();
-			}
-		});
-		row.add(slider);
-		row.add(val);
-		return row;
-	}
-
-	private JPanel buildChanceRowGroup(TriggerGroup group, Runnable onSave)
-	{
-		JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
-		row.setBackground(ColorScheme.DARK_GRAY_COLOR);
-		row.setAlignmentX(Component.LEFT_ALIGNMENT);
-		JLabel lbl = new JLabel("Chance:");
-		lbl.setForeground(Color.WHITE);
-		lbl.setToolTipText("Probability that this sound group plays when its trigger fires (100 = always, 0 = never)");
-		row.add(lbl);
-		JSlider slider = new JSlider(0, 100, group.getChance());
-		slider.setPreferredSize(new Dimension(100, 20));
-		JLabel val = new JLabel(group.getChance() + "%");
-		val.setForeground(Color.LIGHT_GRAY);
-		slider.addChangeListener(e ->
-		{
-			int v = slider.getValue();
-			val.setText(v + "%");
-			if (!slider.getValueIsAdjusting())
-			{
-				group.setChance(v);
-				onSave.run();
+				onCommit.accept(v);
 			}
 		});
 		row.add(slider);
@@ -872,5 +858,81 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		if (display.endsWith(BUILTIN_SUFFIX))
 			return BUNDLED_PREFIX + display.substring(0, display.length() - BUILTIN_SUFFIX.length());
 		return display;
+	}
+
+	// ----- shared widget factories ----------------------------------------------------------
+
+	/** A vertical (Y_AXIS), left-aligned panel; {@code bg} may be {@code null} to stay transparent. */
+	private static JPanel boxColumn(Color bg)
+	{
+		JPanel p = new JPanel();
+		p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
+		if (bg != null) p.setBackground(bg);
+		p.setAlignmentX(Component.LEFT_ALIGNMENT);
+		return p;
+	}
+
+	/** A left-aligned {@link FlowLayout} row with a tight 4px horizontal gap. */
+	private static JPanel flowRow(Color bg)
+	{
+		JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+		p.setBackground(bg);
+		p.setAlignmentX(Component.LEFT_ALIGNMENT);
+		return p;
+	}
+
+	private static JButton makeIconButton(String text, String tooltip)
+	{
+		JButton b = new JButton(text);
+		b.setMargin(new Insets(2, 5, 2, 5));
+		b.setToolTipText(tooltip);
+		return b;
+	}
+
+	/** A borderless, transparent button showing only {@code icon}, swapping to {@code hoverIcon} on rollover. */
+	private static JButton makeImageButton(ImageIcon icon, ImageIcon hoverIcon, String tooltip)
+	{
+		JButton b = new JButton(icon);
+		if (hoverIcon != null)
+		{
+			b.setRolloverIcon(hoverIcon);
+		}
+		b.setToolTipText(tooltip);
+		b.setMargin(new Insets(0, 0, 0, 0));
+		b.setBorderPainted(false);
+		b.setContentAreaFilled(false);
+		b.setFocusPainted(false);
+		b.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+		return b;
+	}
+
+	private static JButton makeRemoveButton(String tooltip)
+	{
+		return makeImageButton(DELETE_ICON, DELETE_HOVER_ICON, tooltip);
+	}
+
+	private static JButton makeCollapseButton(boolean collapsed)
+	{
+		JButton b = makeImageButton(null, null, null);
+		applyCollapseState(b, collapsed);
+		return b;
+	}
+
+	private static void applyCollapseState(JButton btn, boolean collapsed)
+	{
+		btn.setIcon(collapsed ? EXPAND_ICON : COLLAPSE_ICON);
+		btn.setRolloverIcon(collapsed ? EXPAND_HOVER_ICON : COLLAPSE_HOVER_ICON);
+		btn.setToolTipText(collapsed ? "Expand" : "Minimize");
+	}
+
+	private static void setBoldFont(Component c, float size)
+	{
+		c.setFont(c.getFont().deriveFont(Font.BOLD, size));
+	}
+
+	private boolean confirmYesNo(String message, String title)
+	{
+		return JOptionPane.showConfirmDialog(this, message, title,
+			JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE) == JOptionPane.YES_OPTION;
 	}
 }

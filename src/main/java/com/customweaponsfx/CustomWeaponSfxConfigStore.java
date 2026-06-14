@@ -211,6 +211,11 @@ class CustomWeaponSfxConfigStore
 		return v == null ? def : Boolean.parseBoolean(v);
 	}
 
+	boolean getBool(SfxOption option)
+	{
+		return getBool(option.configKey(), option.defaultValue());
+	}
+
 	void setBool(String key, boolean value)
 	{
 		backend.set(key, value);

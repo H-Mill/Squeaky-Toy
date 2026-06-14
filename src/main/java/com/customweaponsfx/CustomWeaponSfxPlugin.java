@@ -235,10 +235,12 @@ public class CustomWeaponSfxPlugin extends Plugin
 
 			if (opt(SfxOption.GLOBAL_ENABLED) && attack.groups != receivedGroups)
 			{
-				Set<Triggers> weaponCoveredTriggers = attack.groups.stream()
-					.filter(g -> !g.getTriggers().isEmpty())
-					.flatMap(g -> g.getTriggers().stream())
-					.collect(Collectors.toCollection(() -> EnumSet.noneOf(Triggers.class)));
+				Set<Triggers> weaponCoveredTriggers = opt(SfxOption.DONT_OVERRIDE_GLOBAL)
+					? EnumSet.noneOf(Triggers.class)
+					: attack.groups.stream()
+						.filter(g -> !g.getTriggers().isEmpty())
+						.flatMap(g -> g.getTriggers().stream())
+						.collect(Collectors.toCollection(() -> EnumSet.noneOf(Triggers.class)));
 				fireMatchingGroups(globalWeaponGroups, outcome.wasSpec, outcome.anyHit, outcome.allZero, outcome.allMax,
 					suppressMax, suppressZero, outcome.isKill, weaponCoveredTriggers);
 			}

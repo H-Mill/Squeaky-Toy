@@ -98,13 +98,23 @@ Each weapon row, the **Received Attacks** section, and the **Global (All Weapons
 
 ## Options
 
-The **Options** section at the top of the panel (collapsed by default) contains three global toggles:
+The **Options** section at the top of the panel (collapsed by default) contains three global toggles and two NPC exclusion lists:
 
 **Ignore max hits ≤ 3** — when enabled, max hit SFX will not play if the hit deals 3 or fewer damage. This prevents thrall max hits from triggering your *Regular/Special attack max* sounds. Enabled by default.
 
 **Ignore zeroes with prayer** — when enabled, the Received Attacks *Regular attack zero* trigger will not fire while Protect from Melee, Protect from Ranged, or Protect from Magic is active. Useful if you don't want a "blocked" sound every time a prayer absorbs a hit. Enabled by default.
 
 **Ignore zeroes with thrall** — when enabled, zero-damage triggers will not fire while a thrall is active. Prevents thrall misses from triggering zero-damage sounds. Enabled by default.
+
+### Excluding NPCs
+
+Two text fields let you stop your hits on specific NPCs from playing any SFX. Both accept a **comma-separated list** and apply only to *outgoing* hits on NPCs — your weapon, Global, and Received Attacks sounds are otherwise unaffected. Changes save automatically when you press Enter or click away from the field.
+
+**Excluded NPC IDs** — comma-separated NPC ids (e.g. `11706, 11707`). Any hit you land on a matching NPC plays no sound.
+
+**Excluded NPC Names** — comma-separated NPC names (e.g. `Vorkath, Zulrah`). Matching is **case-insensitive** and must be the NPC's full name (not a partial match). Useful when an encounter reuses the same name across several NPC ids.
+
+An NPC is excluded if it matches *either* list (or the built-in ids), so you can mix and match. Invalid or blank entries are ignored.
 
 ## Resetting
 
@@ -121,6 +131,7 @@ Click **Reset All Data** to clear all weapons and sound groups and restore defau
 ### 2.5
 
 - Sound groups can now be **renamed** — click the **✎** button on a group header to give it a custom name. Names are saved to your config and must be unique within each weapon or section. The delete confirmation now shows the group's name.
+- Add **Excluded NPC IDs** and **Excluded NPC Names** lists to the Options section — comma-separated entries that stop your hits on the listed NPCs from playing any SFX. Name matching is case-insensitive.
 
 ### 2.4
 

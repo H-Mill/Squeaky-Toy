@@ -27,6 +27,7 @@ import net.runelite.api.Prayer;
 import net.runelite.api.Skill;
 import net.runelite.api.InventoryID;
 import net.runelite.api.Item;
+import net.runelite.api.NPC;
 import net.runelite.api.ItemContainer;
 import net.runelite.api.events.ActorDeath;
 import net.runelite.api.events.AnimationChanged;
@@ -67,6 +68,15 @@ public class CustomWeaponSfxPlugin extends Plugin
 	private static final int PENDING_SPEC_TIMEOUT_TICKS = 10;
 	private static final int RECEIVED_KEY = -2;
 
+	/**
+	 * NPC IDs whose hitsplats never trigger SFX. Add IDs here to exclude more NPCs — e.g. ones
+	 * whose hitsplats aren't "real" attacks (clones, summoned helpers, multi-bodied bosses, etc.).
+	 * Users can exclude additional NPC ids at runtime via the panel; see {@link #userExcludedNpcIds}.
+	 */
+	private static final Set<Integer> EXCLUDED_NPC_IDS = Set.of(
+		11706,
+		11707);
+
 	@Inject private Client client;
 	@Inject private AudioPlayer audioPlayer;
 	@Inject private ClientToolbar clientToolbar;
@@ -89,6 +99,12 @@ public class CustomWeaponSfxPlugin extends Plugin
 	private int lastSpecPct = -1;
 	private int pendingSpecItemId = -1;
 	private int pendingSpecTick = -1;
+
+	/** User-configured NPC id exclusions, on top of {@link #EXCLUDED_NPC_IDS}. Swapped atomically. */
+	private volatile Set<Integer> userExcludedNpcIds = java.util.Collections.emptySet();
+
+	/** User-configured NPC name exclusions (lowercased, trimmed) matched against the target's name. */
+	private volatile Set<String> userExcludedNpcNames = java.util.Collections.emptySet();
 
 	private final EnumMap<SfxOption, Boolean> options = new EnumMap<>(SfxOption.class);
 	private int thrallTicksRemaining = 0;
@@ -119,7 +135,12 @@ public class CustomWeaponSfxPlugin extends Plugin
 		for (SfxOption option : SfxOption.values())
 			options.put(option, store.getBool(option.configKey(), option.defaultValue()));
 
-		panel = new CustomWeaponSfxPanel(store, itemManager, this::openWeaponSearch, this::addEquippedWeapon, this::removeWeapon, this::playSoundFile, this::resetAllData, this::refreshSounds, this::onOptionChanged);
+		userExcludedNpcIds = java.util.Collections.unmodifiableSet(
+			CustomWeaponSfxConfigStore.parseNpcIds(store.getExcludedNpcIdsRaw()));
+		userExcludedNpcNames = java.util.Collections.unmodifiableSet(
+			CustomWeaponSfxConfigStore.parseNpcNames(store.getExcludedNpcNamesRaw()));
+
+		panel = new CustomWeaponSfxPanel(store, itemManager, this::openWeaponSearch, this::addEquippedWeapon, this::removeWeapon, this::playSoundFile, this::resetAllData, this::refreshSounds, this::onOptionChanged, this::onExcludedNpcIdsChanged, this::onExcludedNpcNamesChanged);
 
 		navButton = NavigationButton.builder()
 			.tooltip("Custom Weapon SFX")
@@ -157,6 +178,8 @@ public class CustomWeaponSfxPlugin extends Plugin
 		thrallTicksRemaining = 0;
 		suppressReceivedOnDeath = false;
 		options.clear();
+		userExcludedNpcIds = java.util.Collections.emptySet();
+		userExcludedNpcNames = java.util.Collections.emptySet();
 
 		hits.clear();
 
@@ -257,6 +280,8 @@ public class CustomWeaponSfxPlugin extends Plugin
 
 		if (!event.getHitsplat().isMine()) return;
 
+		if (actor instanceof NPC && isExcludedNpc((NPC) actor)) return;
+
 		boolean isMax   = TriggerEvaluator.isMaxHit(event.getHitsplat().getHitsplatType());
 		boolean wasSpec = pendingSpecItemId >= 0;
 
@@ -270,6 +295,28 @@ public class CustomWeaponSfxPlugin extends Plugin
 			hits.add(new DeferredHit(weaponId, java.util.Collections.emptyList(), wasSpec, amount, isMax, tick, actor));
 	}
 
+	private boolean isExcludedNpc(NPC npc)
+	{
+		if (EXCLUDED_NPC_IDS.contains(npc.getId()) || userExcludedNpcIds.contains(npc.getId()))
+			return true;
+		String name = npc.getName();
+		return name != null && userExcludedNpcNames.contains(name.trim().toLowerCase());
+	}
+
+	private void onExcludedNpcIdsChanged(String raw)
+	{
+		store.setExcludedNpcIds(raw);
+		userExcludedNpcIds = java.util.Collections.unmodifiableSet(
+			CustomWeaponSfxConfigStore.parseNpcIds(raw));
+	}
+
+	private void onExcludedNpcNamesChanged(String raw)
+	{
+		store.setExcludedNpcNames(raw);
+		userExcludedNpcNames = java.util.Collections.unmodifiableSet(
+			CustomWeaponSfxConfigStore.parseNpcNames(raw));
+	}
+
 	private void resetAllData()
 	{
 		store.resetAll(weaponEntries,
@@ -278,6 +325,8 @@ public class CustomWeaponSfxPlugin extends Plugin
 		weaponEntries.clear();
 		receivedGroups.clear();
 		globalWeaponGroups.clear();
+		userExcludedNpcIds = java.util.Collections.emptySet();
+		userExcludedNpcNames = java.util.Collections.emptySet();
 
 		for (SfxOption option : SfxOption.values())
 		{

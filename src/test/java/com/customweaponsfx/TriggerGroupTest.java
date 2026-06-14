@@ -1,9 +1,12 @@
 package com.customweaponsfx;
 
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Set;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
 public class TriggerGroupTest
@@ -50,5 +53,45 @@ public class TriggerGroupTest
 		assertTrue(g.getTriggers().isEmpty());
 		assertTrue(g.getSounds().isEmpty());
 		assertEquals(50, g.getChance());
+	}
+
+	private static TriggerGroup named(String name)
+	{
+		TriggerGroup g = new TriggerGroup(null, null, 100);
+		g.setName(name);
+		return g;
+	}
+
+	@Test
+	public void isNameTakenIsCaseInsensitiveAndSkipsExcludedGroup()
+	{
+		TriggerGroup a = named("Crush");
+		TriggerGroup b = named("Slash");
+		List<TriggerGroup> groups = new ArrayList<>();
+		groups.add(a);
+		groups.add(b);
+
+		assertTrue(TriggerGroup.isNameTaken(groups, "crush", null));
+		assertFalse(TriggerGroup.isNameTaken(groups, "Stab", null));
+		// renaming 'a' to its own (differently-cased) name must not count as a clash with itself
+		assertFalse(TriggerGroup.isNameTaken(groups, "CRUSH", a));
+		// but it still clashes with the *other* group
+		assertTrue(TriggerGroup.isNameTaken(groups, "slash", a));
+	}
+
+	@Test
+	public void defaultNameSkipsUsedNumbers()
+	{
+		List<TriggerGroup> groups = new ArrayList<>();
+		assertEquals("Sound Group 1", TriggerGroup.defaultName(groups));
+
+		groups.add(named("Sound Group 1"));
+		groups.add(named("Sound Group 3"));
+		// 1 is taken, 2 is free
+		assertEquals("Sound Group 2", TriggerGroup.defaultName(groups));
+
+		groups.add(named("Sound Group 2"));
+		// 1,2,3 taken -> 4
+		assertEquals("Sound Group 4", TriggerGroup.defaultName(groups));
 	}
 }

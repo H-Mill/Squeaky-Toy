@@ -97,7 +97,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 	// Hitsplats are batched per tick so multi-hit attacks are evaluated together.
 	private final HitAggregator hits = new HitAggregator();
 
-	private int lastAttackWeaponId = -1;
+	private final AttackWeaponTracker attackWeapon = new AttackWeaponTracker();
 
 	@Override
 	protected void startUp()
@@ -160,7 +160,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 
 		hits.clear();
 
-		lastAttackWeaponId = -1;
+		attackWeapon.reset();
 
 		log.debug("Custom Weapon SFX stopped!");
 	}
@@ -236,8 +236,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 	{
 		if (event.getActor() != client.getLocalPlayer()) return;
 		if (client.getLocalPlayer().getAnimation() == -1) return;
-		int weaponId = getEquippedWeaponId();
-		if (weaponId >= 0) lastAttackWeaponId = weaponId;
+		attackWeapon.onAttack(getEquippedWeaponId());
 	}
 
 	@Subscribe
@@ -261,7 +260,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 		boolean isMax   = TriggerEvaluator.isMaxHit(event.getHitsplat().getHitsplatType());
 		boolean wasSpec = pendingSpecItemId >= 0;
 
-		int weaponId = lastAttackWeaponId >= 0 ? lastAttackWeaponId : getEquippedWeaponId();
+		int weaponId = attackWeapon.resolveWeaponId(getEquippedWeaponId());
 		if (weaponId < 0) return;
 
 		WeaponEntry entry = getWeaponEntry(weaponId);

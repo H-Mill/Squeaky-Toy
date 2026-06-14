@@ -29,7 +29,7 @@ Play custom sound effects when you attack or get hit in Old School RuneScape.
 
 Each weapon and section contains one or more **sound groups**. A sound group fires when its selected triggers match the outcome of an attack (see [Triggers](#triggers) for exact matching rules).
 
-Click **+ Add Sound Group** inside an expanded weapon or section to add another group. Each group has:
+Click **+ Add Sound Group** inside an expanded weapon or section to add another group. New groups get a default name (**Sound Group 1**, **Sound Group 2**, …); click the **✎** button on the group header to rename it. Names must be unique within a weapon or section. Each group has:
 
 - **Chance** — probability the group plays when its trigger fires (100% = always, 0% = never). Useful for adding occasional variation.
 - **Sound(s)** — one or more sound files; if multiple are added, one is chosen at random each time the group fires. Click **▶** to preview a sound.
@@ -117,6 +117,10 @@ Click **Reset All Data** to clear all weapons and sound groups and restore defau
 **Splashing** - Your players splashing, like thrall zeros, cannot be distinguished from other players splashes, so I opted to not include them in the plugin (everyones splashes around you would cause a SFX).
 
 ## Version History
+
+### 2.5
+
+- Sound groups can now be **renamed** — click the **✎** button on a group header to give it a custom name. Names are saved to your config and must be unique within each weapon or section. The delete confirmation now shows the group's name.
 
 ### 2.4
 

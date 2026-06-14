@@ -109,6 +109,32 @@ public class CustomWeaponSfxConfigStoreTest
 	}
 
 	@Test
+	public void groupNameRoundTrips()
+	{
+		String prefix = CustomWeaponSfxPanel.GLOBAL_WEAPON_GROUPS_PREFIX;
+		List<TriggerGroup> groups = new ArrayList<>();
+		TriggerGroup g = group(EnumSet.of(Triggers.ALL), 100, new SoundEntry("g", 50));
+		g.setName("My Custom Name");
+		groups.add(g);
+
+		store.saveDefaultGroups(prefix, groups);
+		assertEquals("My Custom Name", store.loadDefaultGroups(prefix).get(0).getName());
+	}
+
+	@Test
+	public void groupWithoutStoredNameLoadsPositionalDefault()
+	{
+		// A pre-name config: groupCount present, no _name key on either group.
+		backend.set("globalWeapon_groupCount", 2);
+		backend.set("globalWeapon_group_0_triggers", "ALL");
+		backend.set("globalWeapon_group_1_triggers", "KILL");
+
+		List<TriggerGroup> loaded = store.loadDefaultGroups("globalWeapon");
+		assertEquals("Sound Group 1", loaded.get(0).getName());
+		assertEquals("Sound Group 2", loaded.get(1).getName());
+	}
+
+	@Test
 	public void missingDefaultGroupsLoadEmpty()
 	{
 		assertTrue(store.loadDefaultGroups(CustomWeaponSfxPanel.GLOBAL_WEAPON_GROUPS_PREFIX).isEmpty());

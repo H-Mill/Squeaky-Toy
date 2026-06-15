@@ -134,6 +134,10 @@ Click **Reset All Data** to clear all weapons and sound groups and restore defau
 
 ## Version History
 
+### 2.7
+
+- Fix the wrong sound playing on a ranged/magic hit when you switch weapons right after attacking. The hit now plays the sound of the weapon you actually attacked with.
+
 ### 2.6
 
 - Add **Don't override Global** option — when enabled, weapon-specific triggers no longer override the matching Global (All Weapons) triggers, so both sounds play. Disabled by default.

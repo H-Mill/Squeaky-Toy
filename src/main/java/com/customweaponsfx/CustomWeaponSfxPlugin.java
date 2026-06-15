@@ -28,11 +28,14 @@ import net.runelite.api.Skill;
 import net.runelite.api.InventoryID;
 import net.runelite.api.Item;
 import net.runelite.api.NPC;
+import net.runelite.api.Projectile;
 import net.runelite.api.ItemContainer;
+import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.events.ActorDeath;
 import net.runelite.api.events.AnimationChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.HitsplatApplied;
+import net.runelite.api.events.ProjectileMoved;
 import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.VarbitID;
@@ -66,6 +69,8 @@ public class CustomWeaponSfxPlugin extends Plugin
 		"emotional-damage", "thats-a-lot-of-damage", "okay");
 
 	private static final int PENDING_SPEC_TIMEOUT_TICKS = 10;
+	/** Drop tracked projectiles that never produced a hitsplat after this many ticks. */
+	static final int PROJECTILE_TTL_TICKS = 10;
 	private static final int RECEIVED_KEY = -2;
 
 	/**
@@ -100,6 +105,10 @@ public class CustomWeaponSfxPlugin extends Plugin
 	private int pendingSpecItemId = -1;
 	private int pendingSpecTick = -1;
 
+	/** One-tick-delayed equipped-weapon snapshot, used to attribute a projectile to the weapon that
+	 *  launched it even when the player swaps weapons on the same tick the shot was fired. */
+	private final TickWeaponSnapshot launchWeapon = new TickWeaponSnapshot();
+
 	/** User-configured NPC id exclusions, on top of {@link #EXCLUDED_NPC_IDS}. Swapped atomically. */
 	private volatile Set<Integer> userExcludedNpcIds = java.util.Collections.emptySet();
 
@@ -114,6 +123,10 @@ public class CustomWeaponSfxPlugin extends Plugin
 	private final HitAggregator hits = new HitAggregator();
 
 	private final AttackWeaponTracker attackWeapon = new AttackWeaponTracker();
+
+	// Attributes delayed magic/ranged hits to the weapon that launched the projectile, so a weapon
+	// swap (or auto-retaliate melee swing) while the projectile is in flight can't steal the sound.
+	private final ProjectileWeaponTracker projectiles = new ProjectileWeaponTracker();
 
 	@Override
 	protected void startUp()
@@ -152,7 +165,11 @@ public class CustomWeaponSfxPlugin extends Plugin
 
 		panel.rebuild(new ArrayList<>(weaponEntries), availableSounds, bundledSounds, receivedGroups, globalWeaponGroups);
 
-		clientThread.invoke(() -> lastSpecPct = client.getVarpValue(VarPlayerID.SA_ENERGY));
+		clientThread.invoke(() ->
+		{
+			lastSpecPct = client.getVarpValue(VarPlayerID.SA_ENERGY);
+			launchWeapon.init(getEquippedWeaponId());
+		});
 
 		log.debug("Custom Weapon SFX started!");
 	}
@@ -175,6 +192,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 		lastSpecPct = -1;
 		pendingSpecItemId = -1;
 		pendingSpecTick = -1;
+		launchWeapon.reset();
 		thrallTicksRemaining = 0;
 		suppressReceivedOnDeath = false;
 		options.clear();
@@ -184,6 +202,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 		hits.clear();
 
 		attackWeapon.reset();
+		projectiles.reset();
 
 		log.debug("Custom Weapon SFX stopped!");
 	}
@@ -191,6 +210,10 @@ public class CustomWeaponSfxPlugin extends Plugin
 	@Subscribe
 	public void onGameTick(GameTick event)
 	{
+		// Advance the one-tick-delayed weapon snapshot so projectiles fired this tick (rendered after this
+		// GameTick) are attributed to the weapon held at the start of the tick, even after a same-tick swap.
+		launchWeapon.onGameTick(getEquippedWeaponId());
+
 		int nowSpec = client.getVarpValue(VarPlayerID.SA_ENERGY);
 
 		if (lastSpecPct >= 0 && nowSpec < lastSpecPct)
@@ -207,6 +230,8 @@ public class CustomWeaponSfxPlugin extends Plugin
 		}
 
 		if (thrallTicksRemaining > 0) thrallTicksRemaining--;
+
+		projectiles.prune(client.getTickCount());
 
 		if (!hits.isEmpty())
 		{
@@ -265,6 +290,38 @@ public class CustomWeaponSfxPlugin extends Plugin
 	}
 
 	@Subscribe
+	public void onProjectileMoved(ProjectileMoved event)
+	{
+		Projectile p = event.getProjectile();
+		Player me = client.getLocalPlayer();
+		if (me == null) return;
+
+		// ProjectileMoved fires every frame the projectile travels; only record it once, on spawn.
+		if (p.getStartCycle() > client.getGameCycle()) return;
+		if (projectiles.hasSeen(p.getStartCycle())) return;
+
+		// Only track projectiles the local player fired.
+		// fall back to matching the start tile to the player when the source actor doesn't resolve.
+		boolean mine = p.getSourceActor() == me;
+		if (p.getSourceActor() == null)
+		{
+			LocalPoint loc = me.getLocalLocation();
+			mine = loc != null && p.getX() == loc.getX() && p.getY() == loc.getY();
+		}
+		if (!mine) return;
+
+		// Attribute to the weapon held at the start of this tick, not live equipment: this event fires
+		// after the tick's swap is applied, but the shot used the pre-swap (start-of-tick) weapon.
+		int weaponId = launchWeapon.launchWeapon();
+		if (weaponId < 0) return;
+
+		// getEndCycle() is the game cycle the projectile reaches its target; matched against the game
+		// clock at hit time so attribution is distance-independent (no per-tick travel estimate).
+		projectiles.onProjectileSpawned(weaponId, p.getTargetActor(), p.getTargetPoint(),
+			p.getEndCycle(), client.getTickCount(), pendingSpecItemId >= 0);
+	}
+
+	@Subscribe
 	public void onHitsplatApplied(HitsplatApplied event)
 	{
 		Actor actor = event.getActor();
@@ -285,9 +342,23 @@ public class CustomWeaponSfxPlugin extends Plugin
 		if (actor instanceof NPC && isExcludedNpc((NPC) actor)) return;
 
 		boolean isMax   = TriggerEvaluator.isMaxHit(event.getHitsplat().getHitsplatType());
-		boolean wasSpec = pendingSpecItemId >= 0;
 
-		int weaponId = attackWeapon.resolveWeaponId(getEquippedWeaponId());
+		// A delayed magic/ranged hit is attributed to the weapon that launched its projectile, so a
+		// weapon swap (or auto-retaliate melee) in flight can't steal the sound. Melee and other
+		// non-projectile "mine" hitsplats find no match and fall back to the instant tracker.
+		ProjectileWeaponTracker.TrackedProjectile tp = projectiles.matchAndRemove(actor, client.getGameCycle());
+		boolean wasSpec;
+		int weaponId;
+		if (tp != null)
+		{
+			weaponId = tp.weaponId;
+			wasSpec  = tp.wasSpec;
+		}
+		else
+		{
+			weaponId = attackWeapon.resolveWeaponId(getEquippedWeaponId());
+			wasSpec  = pendingSpecItemId >= 0;
+		}
 		if (weaponId < 0) return;
 
 		WeaponEntry entry = getWeaponEntry(weaponId);

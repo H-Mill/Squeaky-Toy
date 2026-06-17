@@ -17,6 +17,7 @@ import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.swing.JOptionPane;
 import javax.swing.SwingUtilities;
+import com.google.inject.Provides;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.Actor;
 import net.runelite.api.Client;
@@ -44,6 +45,7 @@ import net.runelite.client.audio.AudioPlayer;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
@@ -89,6 +91,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 	@Inject private ConfigManager configManager;
 	@Inject private ItemManager itemManager;
 	@Inject private WeaponChatboxSearch weaponSearch;
+	@Inject private CustomWeaponSfxConfig config;
 
 	private ExecutorService executor;
 	private CustomWeaponSfxPanel panel;
@@ -128,6 +131,36 @@ public class CustomWeaponSfxPlugin extends Plugin
 	// swap (or auto-retaliate melee swing) while the projectile is in flight can't steal the sound.
 	private final ProjectileWeaponTracker projectiles = new ProjectileWeaponTracker();
 
+	@Provides
+	CustomWeaponSfxConfig provideConfig(ConfigManager configManager)
+	{
+		return configManager.getConfig(CustomWeaponSfxConfig.class);
+	}
+
+	/** Re-adds the toolbar nav button so a changed {@link CustomWeaponSfxConfig#sidePanelPriority()} takes effect live. */
+	private void rebuildNavButton()
+	{
+		if (panel == null) return;
+		if (navButton != null) clientToolbar.removeNavigation(navButton);
+		navButton = NavigationButton.builder()
+			.tooltip("Custom Weapon SFX")
+			.icon(loadIcon())
+			.panel(panel)
+			.priority(config.sidePanelPriority())
+			.build();
+		clientToolbar.addNavigation(navButton);
+	}
+
+	@Subscribe
+	public void onConfigChanged(ConfigChanged event)
+	{
+		if (!CONFIG_GROUP.equals(event.getGroup())) return;
+		if (CustomWeaponSfxConfig.SIDE_PANEL_PRIORITY.equals(event.getKey()))
+		{
+			rebuildNavButton();
+		}
+	}
+
 	@Override
 	protected void startUp()
 	{
@@ -155,13 +188,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 
 		panel = new CustomWeaponSfxPanel(store, itemManager, this::openWeaponSearch, this::addEquippedWeapon, this::removeWeapon, this::playSoundFile, this::resetAllData, this::refreshSounds, this::onOptionChanged, this::onExcludedNpcIdsChanged, this::onExcludedNpcNamesChanged);
 
-		navButton = NavigationButton.builder()
-			.tooltip("Custom Weapon SFX")
-			.icon(loadIcon())
-			.panel(panel)
-			.priority(5)
-			.build();
-		clientToolbar.addNavigation(navButton);
+		rebuildNavButton();
 
 		panel.rebuild(new ArrayList<>(weaponEntries), availableSounds, bundledSounds, receivedGroups, globalWeaponGroups);
 
@@ -239,46 +266,6 @@ public class CustomWeaponSfxPlugin extends Plugin
 				evaluatePendingAttacks(tickAttacks);
 		}
 		suppressReceivedOnDeath = false;
-	}
-
-	private void evaluatePendingAttacks(List<PendingAttack> pendingAttacks)
-	{
-		boolean specHitsplatSeen = false;
-		for (PendingAttack attack : pendingAttacks)
-		{
-			boolean isKill = attack.actors.stream()
-				.filter(a -> a instanceof Player && a != client.getLocalPlayer())
-				.anyMatch(a -> ((Player) a).getHealthRatio() == 0);
-			AttackOutcome outcome = attack.collapse(isKill);
-			boolean suppressMax  = opt(SfxOption.IGNORE_SMALL_MAX) && outcome.allMax && outcome.maxAmount <= 3;
-			boolean suppressZero = opt(SfxOption.IGNORE_ZERO_THRALL) && thrallTicksRemaining > 0;
-			if (!(attack.groups == receivedGroups && suppressReceivedOnDeath))
-			{
-				fireMatchingGroups(attack.groups, outcome.wasSpec, outcome.anyHit, outcome.allZero, outcome.allMax,
-					suppressMax, suppressZero, outcome.isKill, EnumSet.noneOf(Triggers.class));
-			}
-
-			if (opt(SfxOption.GLOBAL_ENABLED) && attack.groups != receivedGroups)
-			{
-				Set<Triggers> weaponCoveredTriggers = opt(SfxOption.DONT_OVERRIDE_GLOBAL)
-					? EnumSet.noneOf(Triggers.class)
-					: attack.groups.stream()
-						.filter(g -> !g.getTriggers().isEmpty())
-						.flatMap(g -> g.getTriggers().stream())
-						.collect(Collectors.toCollection(() -> EnumSet.noneOf(Triggers.class)));
-				fireMatchingGroups(globalWeaponGroups, outcome.wasSpec, outcome.anyHit, outcome.allZero, outcome.allMax,
-					suppressMax, suppressZero, outcome.isKill, weaponCoveredTriggers);
-			}
-
-			if (outcome.wasSpec) specHitsplatSeen = true;
-		}
-		// Clear the spec window as soon as the spec's hitsplat has been processed
-		// so the next normal attack isn't silently swallowed by the wasSpec flag.
-		if (specHitsplatSeen)
-		{
-			pendingSpecItemId = -1;
-			pendingSpecTick   = -1;
-		}
 	}
 
 	@Subscribe
@@ -368,6 +355,70 @@ public class CustomWeaponSfxPlugin extends Plugin
 			hits.add(new DeferredHit(weaponId, java.util.Collections.emptyList(), wasSpec, amount, isMax, tick, actor));
 	}
 
+	@Subscribe
+	public void onActorDeath(ActorDeath event)
+	{
+		if (event.getActor() != client.getLocalPlayer()) return;
+		if (!opt(SfxOption.RECEIVED_ENABLED)) return;
+		for (TriggerGroup group : receivedGroups)
+		{
+			if (!group.getTriggers().contains(Triggers.PLAYER_DEATH)) continue;
+			suppressReceivedOnDeath = true;
+			fireGroup(group);
+		}
+	}
+
+	@Subscribe
+	public void onVarbitChanged(VarbitChanged event)
+	{
+		if (event.getVarbitId() != VarbitID.ARCEUUS_RESURRECTION_COOLDOWN) return;
+		if (event.getValue() != 1) return;
+
+		int ticks = client.getBoostedSkillLevel(Skill.MAGIC);
+		if (client.getVarbitValue(VarbitID.CA_TIER_STATUS_MASTER) == 2) ticks += ticks;
+		thrallTicksRemaining = ticks + 4;
+	}
+
+	private void evaluatePendingAttacks(List<PendingAttack> pendingAttacks)
+	{
+		boolean specHitsplatSeen = false;
+		for (PendingAttack attack : pendingAttacks)
+		{
+			boolean isKill = attack.actors.stream()
+					.filter(a -> a instanceof Player && a != client.getLocalPlayer())
+					.anyMatch(a -> ((Player) a).getHealthRatio() == 0);
+			AttackOutcome outcome = attack.collapse(isKill);
+			boolean suppressMax  = opt(SfxOption.IGNORE_SMALL_MAX) && outcome.allMax && outcome.maxAmount <= 3;
+			boolean suppressZero = opt(SfxOption.IGNORE_ZERO_THRALL) && thrallTicksRemaining > 0;
+			if (!(attack.groups == receivedGroups && suppressReceivedOnDeath))
+			{
+				fireMatchingGroups(attack.groups, outcome.wasSpec, outcome.anyHit, outcome.allZero, outcome.allMax,
+						suppressMax, suppressZero, outcome.isKill, EnumSet.noneOf(Triggers.class));
+			}
+
+			if (opt(SfxOption.GLOBAL_ENABLED) && attack.groups != receivedGroups)
+			{
+				Set<Triggers> weaponCoveredTriggers = opt(SfxOption.DONT_OVERRIDE_GLOBAL)
+						? EnumSet.noneOf(Triggers.class)
+						: attack.groups.stream()
+						.filter(g -> !g.getTriggers().isEmpty())
+						.flatMap(g -> g.getTriggers().stream())
+						.collect(Collectors.toCollection(() -> EnumSet.noneOf(Triggers.class)));
+				fireMatchingGroups(globalWeaponGroups, outcome.wasSpec, outcome.anyHit, outcome.allZero, outcome.allMax,
+						suppressMax, suppressZero, outcome.isKill, weaponCoveredTriggers);
+			}
+
+			if (outcome.wasSpec) specHitsplatSeen = true;
+		}
+		// Clear the spec window as soon as the spec's hitsplat has been processed
+		// so the next normal attack isn't silently swallowed by the wasSpec flag.
+		if (specHitsplatSeen)
+		{
+			pendingSpecItemId = -1;
+			pendingSpecTick   = -1;
+		}
+	}
+
 	private boolean isExcludedNpc(NPC npc)
 	{
 		if (EXCLUDED_NPC_IDS.contains(npc.getId()) || userExcludedNpcIds.contains(npc.getId()))
@@ -420,30 +471,6 @@ public class CustomWeaponSfxPlugin extends Plugin
 	{
 		options.put(option, value);
 		store.setBool(option.configKey(), value);
-	}
-
-	@Subscribe
-	public void onActorDeath(ActorDeath event)
-	{
-		if (event.getActor() != client.getLocalPlayer()) return;
-		if (!opt(SfxOption.RECEIVED_ENABLED)) return;
-		for (TriggerGroup group : receivedGroups)
-		{
-			if (!group.getTriggers().contains(Triggers.PLAYER_DEATH)) continue;
-			suppressReceivedOnDeath = true;
-			fireGroup(group);
-		}
-	}
-
-	@Subscribe
-	public void onVarbitChanged(VarbitChanged event)
-	{
-		if (event.getVarbitId() != VarbitID.ARCEUUS_RESURRECTION_COOLDOWN) return;
-		if (event.getValue() != 1) return;
-
-		int ticks = client.getBoostedSkillLevel(Skill.MAGIC);
-		if (client.getVarbitValue(VarbitID.CA_TIER_STATUS_MASTER) == 2) ticks += ticks;
-		thrallTicksRemaining = ticks + 4;
 	}
 
 	private boolean isProtectionPrayerActive()

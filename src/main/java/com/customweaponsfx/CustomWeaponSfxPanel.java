@@ -7,7 +7,9 @@ import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.FlowLayout;
 import java.awt.Font;
+import java.awt.Graphics2D;
 import java.awt.Insets;
+import java.awt.RenderingHints;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
 import java.awt.image.BufferedImage;
@@ -32,6 +34,7 @@ import javax.swing.JPanel;
 import javax.swing.JSlider;
 import javax.swing.JTextField;
 import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.ColorScheme;
@@ -59,6 +62,11 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	private static final ImageIcon EXPAND_HOVER_ICON;
 	private static final ImageIcon COLLAPSE_ICON;
 	private static final ImageIcon COLLAPSE_HOVER_ICON;
+	private static final ImageIcon TRASH_ICON;
+	private static final ImageIcon TRASH_HOVER_ICON;
+	private static final ImageIcon REFRESH_ICON;
+	private static final ImageIcon REFRESH_HOVER_ICON;
+	private static final BufferedImage REFRESH_IMG;
 
 	static
 	{
@@ -78,11 +86,23 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		final BufferedImage collapseImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "down_arrow.png");
 		COLLAPSE_ICON = new ImageIcon(collapseImg);
 		COLLAPSE_HOVER_ICON = new ImageIcon(ImageUtil.luminanceOffset(collapseImg, -100));
+
+		final BufferedImage trashImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "trash.png");
+		TRASH_ICON = new ImageIcon(trashImg);
+		TRASH_HOVER_ICON = new ImageIcon(ImageUtil.luminanceOffset(trashImg, -100));
+
+		final BufferedImage refreshImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "refresh.png");
+		REFRESH_IMG = refreshImg;
+		REFRESH_ICON = new ImageIcon(refreshImg);
+		REFRESH_HOVER_ICON = new ImageIcon(ImageUtil.luminanceOffset(refreshImg, -100));
 	}
 
 	private List<String> bundledSounds = new ArrayList<>();
 	private final Set<Integer> expandedWeapons = new HashSet<>();
 	private final Set<String> expandedDefaults = new HashSet<>();
+
+	/** Active spin animation for the refresh button, if any; restarted (not stacked) on rapid re-clicks. */
+	private Timer refreshSpinTimer;
 
 	private final CustomWeaponSfxConfigStore store;
 	private final ItemManager itemManager;
@@ -148,11 +168,29 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		// Match the Look-and-Feel's default button font so labels read consistently with the buttons.
 		Font buttonFont = new JButton().getFont();
 
+		JPanel titleRow = new JPanel();
+		titleRow.setLayout(new BoxLayout(titleRow, BoxLayout.X_AXIS));
+		titleRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+
 		JLabel title = new JLabel("Custom Weapon SFX");
 		title.setForeground(ColorScheme.BRAND_ORANGE);
 		setBoldFont(title, TITLE_SIZE);
-		title.setAlignmentX(Component.LEFT_ALIGNMENT);
-		top.add(title);
+		titleRow.add(title);
+
+		titleRow.add(Box.createHorizontalGlue());
+
+		JButton resetBtn = new JButton(TRASH_ICON);
+		resetBtn.setRolloverIcon(TRASH_HOVER_ICON);
+		resetBtn.setToolTipText("Reset All Data");
+		resetBtn.setMargin(new Insets(2, 6, 2, 6));
+		resetBtn.addActionListener(e ->
+		{
+			if (confirmYesNo("Reset all weapons and sound groups back to defaults?", "Reset All Data"))
+				onReset.run();
+		});
+		titleRow.add(resetBtn);
+
+		top.add(titleRow);
 		top.add(Box.createVerticalStrut(4));
 
 		JLabel customSoundDirections = new JLabel("<html>Want a custom sfx?<br>" +
@@ -172,8 +210,29 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		folderLink.addActionListener(e -> LinkBrowser.open(CustomWeaponSfxPlugin.SOUNDS_DIR.toString()));
 		top.add(folderLink);
 
-		JLabel customSoundDirections2 = new JLabel("<html>2. Click Refresh Sounds<br>" +
-				"3. Click an Add method below and configure it</html>");
+		JPanel refreshRow = new JPanel();
+		refreshRow.setLayout(new BoxLayout(refreshRow, BoxLayout.X_AXIS));
+		refreshRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+		JLabel step2 = new JLabel("2. Click Refresh Sounds:");
+		step2.setFont(buttonFont);
+		refreshRow.add(step2);
+		refreshRow.add(Box.createHorizontalStrut(4));
+
+		JButton refreshSoundsBtn = new JButton(REFRESH_ICON);
+		refreshSoundsBtn.setRolloverIcon(REFRESH_HOVER_ICON);
+		refreshSoundsBtn.setToolTipText("Rescan .runelite/customweaponsfx/ for new .wav files");
+		refreshSoundsBtn.setMargin(new Insets(2, 6, 2, 6));
+		refreshSoundsBtn.addActionListener(e ->
+		{
+			spinRefreshButton(refreshSoundsBtn);
+			onRefreshSounds.run();
+		});
+		refreshRow.add(refreshSoundsBtn);
+		refreshRow.add(Box.createHorizontalGlue());
+		top.add(refreshRow);
+
+		JLabel customSoundDirections2 = new JLabel("<html>3. Click an Add method below and configure it</html>");
 		customSoundDirections2.setFont(buttonFont);
 		customSoundDirections2.setAlignmentX(Component.LEFT_ALIGNMENT);
 		top.add(customSoundDirections2);
@@ -198,38 +257,54 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		top.add(btnRow);
 		top.add(Box.createVerticalStrut(4));
 
-		JPanel refreshRow = new JPanel();
-		refreshRow.setLayout(new BoxLayout(refreshRow, BoxLayout.X_AXIS));
-		refreshRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-		JButton refreshSoundsBtn = new JButton("Refresh Sounds");
-		refreshSoundsBtn.setToolTipText("Rescan .runelite/customweaponsfx/ for new .wav files");
-		refreshSoundsBtn.addActionListener(e -> onRefreshSounds.run());
-		refreshRow.add(refreshSoundsBtn);
-
-		top.add(refreshRow);
-		top.add(Box.createVerticalStrut(4));
-
-		JPanel resetRow = new JPanel();
-		resetRow.setLayout(new BoxLayout(resetRow, BoxLayout.X_AXIS));
-		resetRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-		JButton resetBtn = new JButton("Reset All Data");
-		resetBtn.setForeground(Color.RED);
-		resetBtn.setToolTipText("Wipe all saved weapon entries and sound groups, then restore defaults");
-		resetBtn.addActionListener(e ->
-		{
-			if (confirmYesNo("Reset all weapons and sound groups back to defaults?", "Reset All Data"))
-				onReset.run();
-		});
-		resetRow.add(resetBtn);
-
-		top.add(resetRow);
 		top.add(Box.createVerticalStrut(6));
 		top.add(buildTogglesSection());
 		top.add(Box.createVerticalStrut(4));
 
 		return top;
+	}
+
+	/** Spins the refresh icon one full turn (~500ms) as click feedback, then restores the static icon. */
+	private void spinRefreshButton(JButton button)
+	{
+		if (refreshSpinTimer != null && refreshSpinTimer.isRunning())
+			refreshSpinTimer.stop();
+
+		final int durationMs = 500;
+		final long start = System.currentTimeMillis();
+		// Rollover would otherwise paint the dark hover icon over our rotated frames while hovered.
+		button.setRolloverEnabled(false);
+		refreshSpinTimer = new Timer(15, null);
+		refreshSpinTimer.addActionListener(ev ->
+		{
+			long elapsed = System.currentTimeMillis() - start;
+			if (elapsed >= durationMs)
+			{
+				button.setIcon(REFRESH_ICON);
+				button.setRolloverEnabled(true);
+				refreshSpinTimer.stop();
+				return;
+			}
+			double angle = -2 * Math.PI * (elapsed / (double) durationMs);
+			button.setIcon(new ImageIcon(rotateImage(REFRESH_IMG, angle)));
+		});
+		refreshSpinTimer.setInitialDelay(0);
+		refreshSpinTimer.start();
+	}
+
+	/** Returns a copy of {@code src} rotated {@code radians} about its centre, same dimensions. */
+	private static BufferedImage rotateImage(BufferedImage src, double radians)
+	{
+		int w = src.getWidth();
+		int h = src.getHeight();
+		BufferedImage dst = new BufferedImage(w, h, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D g = dst.createGraphics();
+		g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+		g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+		g.rotate(radians, w / 2.0, h / 2.0);
+		g.drawImage(src, 0, 0, null);
+		g.dispose();
+		return dst;
 	}
 
 	private JPanel buildTogglesSection()

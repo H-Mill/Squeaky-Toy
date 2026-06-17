@@ -122,6 +122,12 @@ Two text fields let you stop your hits on specific NPCs from playing any SFX. Bo
 
 An NPC is excluded if it matches *either* list (or the built-in ids), so you can mix and match. Invalid or blank entries are ignored.
 
+## Plugin Configuration
+
+A few settings live in RuneLite's standard configuration panel — click the **gear/cog icon** next to **Custom Weapon SFX** in the plugin list (not the side panel itself).
+
+**Side Panel Priority** — controls where the Custom Weapon SFX icon sits in the RuneLite sidebar relative to other plugins' icons. **Lower numbers sit higher** (closer to the top); higher numbers sit lower. The default is `1`. Changing it reorders the icon.
+
 ## Resetting
 
 Click **Reset All Data** to clear all weapons and sound groups and restore defaults. A confirmation dialog will appear first.
@@ -133,6 +139,11 @@ Click **Reset All Data** to clear all weapons and sound groups and restore defau
 **Splashing** - Your players splashing, like thrall zeros, cannot be distinguished from other players splashes, so I opted to not include them in the plugin (everyones splashes around you would cause a SFX).
 
 ## Version History
+
+### 2.8
+
+- Add a **Side Panel Priority** setting (in the plugin's config cog) to control where the Custom Weapon SFX icon sits in the RuneLite sidebar. Lower numbers sit higher; changes apply instantly without a restart.
+- Small UI updates
 
 ### 2.7
 

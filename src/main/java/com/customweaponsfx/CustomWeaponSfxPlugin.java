@@ -618,10 +618,29 @@ public class CustomWeaponSfxPlugin extends Plugin
 		if (chance < 100 && ThreadLocalRandom.current().nextInt(100) >= chance) return;
 		List<SoundEntry> sounds = group.getSounds();
 		if (sounds.isEmpty()) return;
-		SoundEntry se = sounds.size() == 1
-			? sounds.get(0)
-			: sounds.get(ThreadLocalRandom.current().nextInt(sounds.size()));
+		// A lone sound always plays; with several, pick one weighted by each sound's chance.
+		SoundEntry se = sounds.size() == 1 ? sounds.get(0) : pickWeighted(sounds);
+		if (se == null) return;
 		playSoundFile(se.getSoundFile(), se.getVolume());
+	}
+
+	/**
+	 * Picks a sound at random weighted by each entry's {@link SoundEntry#getWeight() weight}.
+	 * Returns {@code null} if every weight is 0 (nothing should play).
+	 */
+	static SoundEntry pickWeighted(List<SoundEntry> sounds)
+	{
+		double total = 0;
+		for (SoundEntry s : sounds) total += Math.max(0, s.getWeight());
+		if (total <= 0) return null;
+
+		double roll = ThreadLocalRandom.current().nextDouble(total);
+		for (SoundEntry s : sounds)
+		{
+			roll -= Math.max(0, s.getWeight());
+			if (roll < 0) return s;
+		}
+		return sounds.get(sounds.size() - 1); // unreachable: roll < total guarantees a hit
 	}
 
 	private void playSoundFile(String soundFile, int volume)

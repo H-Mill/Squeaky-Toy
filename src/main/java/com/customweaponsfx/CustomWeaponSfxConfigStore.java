@@ -277,7 +277,8 @@ class CustomWeaponSfxConfigStore
 		{
 			String sf = backend.get(gk + "_sound_" + j);
 			int vol = parseIntOr(backend.get(gk + "_volume_" + j), DEFAULT_VOLUME);
-			sounds.add(new SoundEntry(sf != null ? sf : "", vol));
+			double weight = parseDoubleOr(backend.get(gk + "_weight_" + j), SoundEntry.DEFAULT_WEIGHT);
+			sounds.add(new SoundEntry(sf != null ? sf : "", vol, weight));
 		}
 
 		TriggerGroup group = new TriggerGroup(triggers, sounds, chance);
@@ -306,6 +307,7 @@ class CustomWeaponSfxConfigStore
 		{
 			backend.set(gk + "_sound_" + j, sounds.get(j).getSoundFile());
 			backend.set(gk + "_volume_" + j, sounds.get(j).getVolume());
+			backend.set(gk + "_weight_" + j, sounds.get(j).getWeight());
 		}
 	}
 
@@ -326,6 +328,7 @@ class CustomWeaponSfxConfigStore
 		{
 			backend.unset(gk + "_sound_" + j);
 			backend.unset(gk + "_volume_" + j);
+			backend.unset(gk + "_weight_" + j);
 		}
 	}
 
@@ -340,6 +343,13 @@ class CustomWeaponSfxConfigStore
 	{
 		Integer v = tryParse(s);
 		return v != null ? v : def;
+	}
+
+	private static double parseDoubleOr(String s, double def)
+	{
+		if (s == null) return def;
+		try { return Double.parseDouble(s.trim()); }
+		catch (NumberFormatException e) { return def; }
 	}
 
 	private static final class ConfigManagerBackend implements Backend

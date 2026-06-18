@@ -69,6 +69,8 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	private static final ImageIcon REFRESH_ICON;
 	private static final ImageIcon REFRESH_HOVER_ICON;
 	private static final BufferedImage REFRESH_IMG;
+	private static final ImageIcon TEST_ICON;
+	private static final ImageIcon TEST_HOVER_ICON;
 
 	static
 	{
@@ -97,6 +99,10 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		REFRESH_IMG = refreshImg;
 		REFRESH_ICON = new ImageIcon(refreshImg);
 		REFRESH_HOVER_ICON = new ImageIcon(ImageUtil.luminanceOffset(refreshImg, -100));
+
+		final BufferedImage testImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "test_sound.png");
+		TEST_ICON = new ImageIcon(testImg);
+		TEST_HOVER_ICON = new ImageIcon(ImageUtil.luminanceOffset(testImg, -100));
 	}
 
 	private List<String> bundledSounds = new ArrayList<>();
@@ -112,6 +118,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	private final Runnable onAddEquipped;
 	private final Consumer<Integer> onRemoveWeapon;
 	private final BiConsumer<String, Integer> onTestSound;
+	private final Consumer<TriggerGroup> onTestGroup;
 	private final Runnable onReset;
 	private final Runnable onRefreshSounds;
 	private final BiConsumer<SfxOption, Boolean> onOptionToggled;
@@ -133,6 +140,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		Runnable onAddEquipped,
 		Consumer<Integer> onRemoveWeapon,
 		BiConsumer<String, Integer> onTestSound,
+		Consumer<TriggerGroup> onTestGroup,
 		Runnable onReset,
 		Runnable onRefreshSounds,
 		BiConsumer<SfxOption, Boolean> onOptionToggled,
@@ -145,6 +153,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		this.onAddEquipped = onAddEquipped;
 		this.onRemoveWeapon = onRemoveWeapon;
 		this.onTestSound = onTestSound;
+		this.onTestGroup = onTestGroup;
 		this.onReset = onReset;
 		this.onRefreshSounds = onRefreshSounds;
 		this.onOptionToggled = onOptionToggled;
@@ -682,6 +691,11 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			JPanel headerButtons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 2, 0));
 			headerButtons.setBackground(ColorScheme.DARK_GRAY_COLOR);
 
+			JButton testGroupBtn = makeImageButton(TEST_ICON, TEST_HOVER_ICON,
+				"Test this group — rolls its chance, then plays one sound chosen by weight at that sound's volume");
+			testGroupBtn.addActionListener(e -> onTestGroup.accept(group));
+			headerButtons.add(testGroupBtn);
+
 			JButton renameGroupBtn = makeImageButton(EDIT_ICON, EDIT_HOVER_ICON, "Rename sound group");
 			renameGroupBtn.addActionListener(e ->
 			{
@@ -872,7 +886,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			});
 			soundControls.add(box);
 
-			JButton testBtn = makeIconButton("▶", "Test sound");
+			JButton testBtn = makeImageButton(TEST_ICON, TEST_HOVER_ICON, "Test sound");
 			testBtn.addActionListener(e -> onTestSound.accept(
 				displayToConfig((String) box.getSelectedItem()), se.getVolume()));
 			soundControls.add(testBtn);
@@ -1028,14 +1042,6 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		p.setBackground(bg);
 		p.setAlignmentX(Component.LEFT_ALIGNMENT);
 		return p;
-	}
-
-	private static JButton makeIconButton(String text, String tooltip)
-	{
-		JButton b = new JButton(text);
-		b.setMargin(new Insets(2, 5, 2, 5));
-		b.setToolTipText(tooltip);
-		return b;
 	}
 
 	/** A borderless, transparent button showing only {@code icon}, swapping to {@code hoverIcon} on rollover. */

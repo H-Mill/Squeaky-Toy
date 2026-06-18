@@ -186,7 +186,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 		userExcludedNpcNames = java.util.Collections.unmodifiableSet(
 			CustomWeaponSfxConfigStore.parseNpcNames(store.getExcludedNpcNamesRaw()));
 
-		panel = new CustomWeaponSfxPanel(store, itemManager, this::openWeaponSearch, this::addEquippedWeapon, this::removeWeapon, this::playSoundFile, this::resetAllData, this::refreshSounds, this::onOptionChanged, this::onExcludedNpcIdsChanged, this::onExcludedNpcNamesChanged);
+		panel = new CustomWeaponSfxPanel(store, itemManager, this::openWeaponSearch, this::addEquippedWeapon, this::removeWeapon, this::playSoundFile, this::fireGroup, this::resetAllData, this::refreshSounds, this::onOptionChanged, this::onExcludedNpcIdsChanged, this::onExcludedNpcNamesChanged);
 
 		rebuildNavButton();
 

@@ -65,6 +65,7 @@ public class CustomWeaponSfxConfigStoreTest
 		{
 			assertEquals(expected.getSounds().get(i).getSoundFile(), actual.getSounds().get(i).getSoundFile());
 			assertEquals(expected.getSounds().get(i).getVolume(), actual.getSounds().get(i).getVolume());
+			assertEquals(expected.getSounds().get(i).getWeight(), actual.getSounds().get(i).getWeight(), 0.0001);
 		}
 	}
 
@@ -73,7 +74,7 @@ public class CustomWeaponSfxConfigStoreTest
 	{
 		List<TriggerGroup> groups = new ArrayList<>();
 		groups.add(group(EnumSet.of(Triggers.REGULAR_HIT, Triggers.KILL), 80,
-			new SoundEntry("bundled:bonk", 50), new SoundEntry("my-clip", 100)));
+			new SoundEntry("bundled:bonk", 50, 0.5), new SoundEntry("my-clip", 100, 2.5)));
 		groups.add(group(EnumSet.of(Triggers.SPECIAL_MAX), 25, new SoundEntry("", 75)));
 
 		WeaponEntry entry = new WeaponEntry(1234, "Test Weapon", groups);
@@ -155,6 +156,7 @@ public class CustomWeaponSfxConfigStoreTest
 		assertEquals(1, g.getSounds().size());      // DEFAULT_SOUND_COUNT
 		assertEquals("", g.getSounds().get(0).getSoundFile());
 		assertEquals(75, g.getSounds().get(0).getVolume()); // DEFAULT_VOLUME
+		assertEquals(1.0, g.getSounds().get(0).getWeight(), 0.0001); // SoundEntry.DEFAULT_WEIGHT
 	}
 
 	@Test
@@ -196,6 +198,7 @@ public class CustomWeaponSfxConfigStoreTest
 		assertNull(backend.get("specWeapon_99_group_0_soundCount"));
 		assertNull(backend.get("specWeapon_99_group_0_sound_0"));
 		assertNull(backend.get("specWeapon_99_group_0_volume_0"));
+		assertNull(backend.get("specWeapon_99_group_0_weight_0"));
 	}
 
 	@Test

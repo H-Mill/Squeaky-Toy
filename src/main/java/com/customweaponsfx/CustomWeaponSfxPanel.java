@@ -32,7 +32,9 @@ import javax.swing.JComboBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
 import javax.swing.JSlider;
+import javax.swing.JSpinner;
 import javax.swing.JTextField;
+import javax.swing.SpinnerNumberModel;
 import javax.swing.SwingUtilities;
 import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
@@ -67,6 +69,8 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	private static final ImageIcon REFRESH_ICON;
 	private static final ImageIcon REFRESH_HOVER_ICON;
 	private static final BufferedImage REFRESH_IMG;
+	private static final ImageIcon TEST_ICON;
+	private static final ImageIcon TEST_HOVER_ICON;
 
 	static
 	{
@@ -95,6 +99,10 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		REFRESH_IMG = refreshImg;
 		REFRESH_ICON = new ImageIcon(refreshImg);
 		REFRESH_HOVER_ICON = new ImageIcon(ImageUtil.luminanceOffset(refreshImg, -100));
+
+		final BufferedImage testImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "test_sound.png");
+		TEST_ICON = new ImageIcon(testImg);
+		TEST_HOVER_ICON = new ImageIcon(ImageUtil.luminanceOffset(testImg, -100));
 	}
 
 	private List<String> bundledSounds = new ArrayList<>();
@@ -110,6 +118,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	private final Runnable onAddEquipped;
 	private final Consumer<Integer> onRemoveWeapon;
 	private final BiConsumer<String, Integer> onTestSound;
+	private final Consumer<TriggerGroup> onTestGroup;
 	private final Runnable onReset;
 	private final Runnable onRefreshSounds;
 	private final BiConsumer<SfxOption, Boolean> onOptionToggled;
@@ -131,6 +140,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		Runnable onAddEquipped,
 		Consumer<Integer> onRemoveWeapon,
 		BiConsumer<String, Integer> onTestSound,
+		Consumer<TriggerGroup> onTestGroup,
 		Runnable onReset,
 		Runnable onRefreshSounds,
 		BiConsumer<SfxOption, Boolean> onOptionToggled,
@@ -143,6 +153,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		this.onAddEquipped = onAddEquipped;
 		this.onRemoveWeapon = onRemoveWeapon;
 		this.onTestSound = onTestSound;
+		this.onTestGroup = onTestGroup;
 		this.onReset = onReset;
 		this.onRefreshSounds = onRefreshSounds;
 		this.onOptionToggled = onOptionToggled;
@@ -512,6 +523,9 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	private static final Color ROW_COLOR_A = ColorScheme.DARKER_GRAY_COLOR;
 	private static final Color ROW_COLOR_B = new Color(40, 38, 35);
 
+	/** Background for each sound's box — matches the weapon boxes to set sounds apart from the group. */
+	private static final Color SOUND_BOX_COLOR = ColorScheme.DARKER_GRAY_COLOR;
+
 	private JPanel buildRow(WeaponEntry entry, List<String> availableSounds, int index)
 	{
 		Color bg = (index % 2 == 0) ? ROW_COLOR_A : ROW_COLOR_B;
@@ -667,7 +681,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			JLabel groupLabel = new JLabel(groupName);
 			groupLabel.setForeground(ColorScheme.BRAND_ORANGE);
 			groupLabel.setToolTipText("<html>A sound group plays when its triggers are met. If the group has<br>"
-				+ "multiple sounds, one of them is chosen at random to play.<br><br>"
+				+ "multiple sounds, one is picked at random, weighted by each sound's weight.<br><br>"
 				+ "You can add multiple sound groups — if several groups share<br>"
 				+ "overlapping triggers, they all play. Use separate groups for<br>"
 				+ "different triggers, or to stack multiple sounds on the same trigger.</html>");
@@ -676,6 +690,11 @@ public class CustomWeaponSfxPanel extends PluginPanel
 
 			JPanel headerButtons = new JPanel(new FlowLayout(FlowLayout.RIGHT, 2, 0));
 			headerButtons.setBackground(ColorScheme.DARK_GRAY_COLOR);
+
+			JButton testGroupBtn = makeImageButton(TEST_ICON, TEST_HOVER_ICON,
+				"Test this group — rolls its chance, then plays one sound chosen by weight at that sound's volume");
+			testGroupBtn.addActionListener(e -> onTestGroup.accept(group));
+			headerButtons.add(testGroupBtn);
 
 			JButton renameGroupBtn = makeImageButton(EDIT_ICON, EDIT_HOVER_ICON, "Rename sound group");
 			renameGroupBtn.addActionListener(e ->
@@ -719,7 +738,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 
 			groupPanel.add(groupHeader);
 			groupPanel.add(Box.createVerticalStrut(4));
-			groupPanel.add(buildSliderRow("Chance:",
+			groupPanel.add(buildSliderRow(ColorScheme.DARK_GRAY_COLOR, "Chance:",
 				"Probability that this sound group plays when its trigger fires (100 = always, 0 = never)",
 				group.getChance(), v -> { group.setChance(v); onSave.run(); }));
 			groupPanel.add(Box.createVerticalStrut(4));
@@ -817,33 +836,62 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	{
 		holder.removeAll();
 		List<SoundEntry> sounds = group.getSounds();
+		final boolean weighted = sounds.size() > 1;
+		final List<JLabel> weightReadouts = new ArrayList<>();
+
+		// Re-derives each weight row's effective "%" from the current weights across all sounds.
+		Runnable refreshWeights = () ->
+		{
+			double total = 0;
+			for (SoundEntry s : sounds) total += Math.max(0, s.getWeight());
+			for (int k = 0; k < weightReadouts.size(); k++)
+			{
+				double w = Math.max(0, sounds.get(k).getWeight());
+				weightReadouts.get(k).setText(total <= 0 ? "0%" : Math.round(w * 100 / total) + "%");
+			}
+		};
 
 		for (int j = 0; j < sounds.size(); j++)
 		{
 			final int idx = j;
 			SoundEntry se = sounds.get(j);
 
-			JPanel soundRow = flowRow(ColorScheme.DARK_GRAY_COLOR);
+			// Each sound lives in its own box, styled like the weapon boxes, to set it apart.
+			JPanel soundBox = boxColumn(SOUND_BOX_COLOR);
+			soundBox.setBorder(BorderFactory.createCompoundBorder(
+				BorderFactory.createLineBorder(ColorScheme.MEDIUM_GRAY_COLOR),
+				new EmptyBorder(6, 6, 6, 6)
+			));
+
+			// BorderLayout keeps the remove button pinned to the right edge so it can't be
+			// pushed off-panel when the box border narrows the available width.
+			JPanel soundRow = new JPanel(new BorderLayout(4, 0));
+			soundRow.setBackground(SOUND_BOX_COLOR);
+			soundRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+			JPanel soundControls = flowRow(SOUND_BOX_COLOR);
 			JLabel lbl = new JLabel("Sound:");
 			lbl.setForeground(Color.WHITE);
 			lbl.setToolTipText("Sound file to play. Built-in sounds are bundled with the plugin; custom sounds load from .runelite/customweaponsfx/");
-			soundRow.add(lbl);
+			soundControls.add(lbl);
 
 			String[] options = buildSoundOptions(availableSounds);
 			JComboBox<String> box = new JComboBox<>(options);
-			box.setPreferredSize(new Dimension(85, box.getPreferredSize().height));
+			box.setPreferredSize(new Dimension(75, box.getPreferredSize().height));
 			box.setSelectedItem(configToDisplay(se.getSoundFile()));
 			box.addActionListener(e ->
 			{
 				se.setSoundFile(displayToConfig((String) box.getSelectedItem()));
 				onSave.run();
 			});
-			soundRow.add(box);
+			soundControls.add(box);
 
-			JButton testBtn = makeIconButton("▶", "Test sound");
+			JButton testBtn = makeImageButton(TEST_ICON, TEST_HOVER_ICON, "Test sound");
 			testBtn.addActionListener(e -> onTestSound.accept(
 				displayToConfig((String) box.getSelectedItem()), se.getVolume()));
-			soundRow.add(testBtn);
+			soundControls.add(testBtn);
+
+			soundRow.add(soundControls, BorderLayout.CENTER);
 
 			if (sounds.size() > 1)
 			{
@@ -854,21 +902,28 @@ public class CustomWeaponSfxPanel extends PluginPanel
 					onSave.run();
 					rebuildSoundsHolder(holder, group, availableSounds, onSave);
 				});
-				soundRow.add(removeBtn);
+				soundRow.add(removeBtn, BorderLayout.EAST);
 			}
 
-			holder.add(soundRow);
-			holder.add(buildSliderRow("Volume:",
+			soundRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, soundRow.getPreferredSize().height));
+			soundBox.add(soundRow);
+			soundBox.add(buildSliderRow(SOUND_BOX_COLOR, "Volume:",
 				"Playback volume for this sound (0 = silent, 100 = full volume)",
 				se.getVolume(), v -> { se.setVolume(v); onSave.run(); }));
 
+			if (weighted)
+				soundBox.add(buildWeightRow(SOUND_BOX_COLOR, se, weightReadouts, refreshWeights, onSave));
+
+			holder.add(soundBox);
 			if (j < sounds.size() - 1)
 				holder.add(Box.createVerticalStrut(4));
 		}
 
+		refreshWeights.run();
+
 		holder.add(Box.createVerticalStrut(2));
 		JButton addSoundBtn = new JButton("+ Add Sound");
-		addSoundBtn.setToolTipText("Add another sound to this group — one will be picked at random when the group fires");
+		addSoundBtn.setToolTipText("Add another sound to this group — when it fires, one is picked at random, weighted by each sound's weight");
 		addSoundBtn.setAlignmentX(Component.LEFT_ALIGNMENT);
 		addSoundBtn.addActionListener(e ->
 		{
@@ -882,10 +937,43 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		holder.repaint();
 	}
 
-	/** A label + 0–100 slider + live "%" readout row; commits via {@code onCommit} on release. */
-	private JPanel buildSliderRow(String label, String tooltip, int initial, IntConsumer onCommit)
+	/**
+	 * A "Weight:" spinner row whose readout shows this sound's <em>effective</em> chance
+	 * (its weight relative to the group's total). Live-updates every row's readout via
+	 * {@code refreshWeights} and commits via {@code onSave}.
+	 */
+	private JPanel buildWeightRow(Color bg, SoundEntry se, List<JLabel> weightReadouts,
+		Runnable refreshWeights, Runnable onSave)
 	{
-		JPanel row = flowRow(ColorScheme.DARK_GRAY_COLOR);
+		JPanel row = flowRow(bg);
+		JLabel lbl = new JLabel("Weight:");
+		lbl.setForeground(Color.WHITE);
+		lbl.setToolTipText("Relative weight for picking this sound. Its chance to play is this "
+			+ "weight divided by the sum of all weights in the group (0 = never). "
+			+ "The readout shows the resulting chance.");
+		row.add(lbl);
+
+		double initial = Math.max(0, se.getWeight());
+		JSpinner spinner = new JSpinner(new SpinnerNumberModel(initial, 0d, 1000d, 0.5d));
+		spinner.setPreferredSize(new Dimension(60, spinner.getPreferredSize().height));
+		JLabel readout = new JLabel();
+		readout.setForeground(Color.LIGHT_GRAY);
+		weightReadouts.add(readout);
+		spinner.addChangeListener(e ->
+		{
+			se.setWeight(((Number) spinner.getValue()).doubleValue());
+			refreshWeights.run();
+			onSave.run();
+		});
+		row.add(spinner);
+		row.add(readout);
+		return row;
+	}
+
+	/** A label + 0–100 slider + live "%" readout row; commits via {@code onCommit} on release. */
+	private JPanel buildSliderRow(Color bg, String label, String tooltip, int initial, IntConsumer onCommit)
+	{
+		JPanel row = flowRow(bg);
 		JLabel lbl = new JLabel(label);
 		lbl.setForeground(Color.WHITE);
 		lbl.setToolTipText(tooltip);
@@ -954,14 +1042,6 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		p.setBackground(bg);
 		p.setAlignmentX(Component.LEFT_ALIGNMENT);
 		return p;
-	}
-
-	private static JButton makeIconButton(String text, String tooltip)
-	{
-		JButton b = new JButton(text);
-		b.setMargin(new Insets(2, 5, 2, 5));
-		b.setToolTipText(tooltip);
-		return b;
 	}
 
 	/** A borderless, transparent button showing only {@code icon}, swapping to {@code hoverIcon} on rollover. */

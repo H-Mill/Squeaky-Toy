@@ -11,7 +11,7 @@ Play custom sound effects when you attack or get hit in Old School RuneScape.
 - Separate sounds for when *you* take damage (Received Attacks)
 - **Global (All Weapons)** fallback section — plays sounds for any weapon that doesn't have its own configuration for a given trigger
 - Multiple sound groups per weapon or section, each with its own triggers, sounds, volume, and activation chance
-- Multiple sounds per group — one is picked at random each time the group fires
+- Multiple sounds per group — one is picked at random each time the group fires, with an adjustable **weight** to make some sounds more likely than others
 - Per-group activation chance (0–100%) for randomized playback
 - Enable or disable individual weapons and sections without losing their configuration
 - Use built-in sounds or drop in your own `.wav` files
@@ -32,11 +32,14 @@ Each weapon and section contains one or more **sound groups**. A sound group fir
 Click **+ Add Sound Group** inside an expanded weapon or section to add another group. New groups get a default name (**Sound Group 1**, **Sound Group 2**, …); click the **edit** (pencil) icon on the group header to rename it. Names must be unique within a weapon or section. Each group has:
 
 - **Chance** — probability the group plays when its trigger fires (100% = always, 0% = never). Useful for adding occasional variation.
-- **Sound(s)** — one or more sound files; if multiple are added, one is chosen at random each time the group fires. Click **▶** to preview a sound.
+- **Sound(s)** — one or more sound files; if multiple are added, one is chosen at random each time the group fires. Click the **test** icon to preview a sound.
 - **Volume** — playback volume per sound (0–100).
+- **Weight** — how likely each sound is to be picked when a group has more than one. A sound's chance is its weight divided by the total of all weights in the group, and the **%** beside it shows the resulting chance. Leave them all equal for an even random pick, or raise one to make it play more often.
 - **Triggers** — which hit outcomes cause this group to fire (see below).
 
 Click **+ Add Sound** inside a group to add more sounds to the random pool. Sound groups can be removed with the **delete** (trash) icon on the group header, including the last remaining one.
+
+Click the **test** icon on the group header to test the whole group. It rolls the group's chance, then plays one sound picked by weight at that sound's volume — so you can preview the combined effect of chance, weights, and volume. (Because it rolls the chance, a group set below 100% may play nothing on some presses.)
 
 Multiple sound groups on the same weapon (or section) with matching triggers all fire together, so you can define two or more groups with the same trigger to play several SFX at once. (A single group with multiple sounds plays just *one* of them at random — use separate groups when you want every sound to play.)
 
@@ -139,6 +142,12 @@ Click **Reset All Data** to clear all weapons and sound groups and restore defau
 **Splashing** - Your players splashing, like thrall zeros, cannot be distinguished from other players splashes, so I opted to not include them in the plugin (everyones splashes around you would cause a SFX).
 
 ## Version History
+
+### 2.9
+
+- Add a **Weight** control to each sound in a group with multiple sounds. Set how likely each sound is to play relative to the others — the **%** beside it shows the resulting chance. Existing groups keep an even random pick.
+- Add a **test** button to each sound group header that rolls the group's chance and plays a weighted sound at its volume, so you can preview chance, weights, and volume together. The per-sound preview button now uses the same icon in place of the previous Unicode glyph.
+- Each sound now sits in its own box in the panel to make multi-sound groups easier to read.
 
 ### 2.8
 

@@ -3,16 +3,10 @@ package com.customweaponsfx;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
-import java.io.File;
-import java.util.ArrayList;
-import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import javax.swing.JOptionPane;
@@ -34,23 +28,28 @@ import net.runelite.api.ItemContainer;
 import net.runelite.api.coords.LocalPoint;
 import net.runelite.api.events.ActorDeath;
 import net.runelite.api.events.AnimationChanged;
+import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.HitsplatApplied;
 import net.runelite.api.events.ProjectileMoved;
 import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.VarbitID;
-import net.runelite.client.RuneLite;
 import net.runelite.client.audio.AudioPlayer;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.eventbus.EventBus;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
+import net.runelite.api.MenuAction;
+import net.runelite.client.events.OverlayMenuClicked;
 import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
+import net.runelite.client.ui.overlay.Overlay;
+import net.runelite.client.ui.overlay.OverlayMenuEntry;
 import net.runelite.client.util.ImageUtil;
 
 @Slf4j
@@ -63,62 +62,40 @@ import net.runelite.client.util.ImageUtil;
 public class CustomWeaponSfxPlugin extends Plugin
 {
 	static final String CONFIG_GROUP = "customweaponsfx";
-	static final File SOUNDS_DIR = new File(RuneLite.RUNELITE_DIR, "customweaponsfx");
 
-	/** Names of the .wav resources bundled with the plugin (without the .wav extension). */
-	static final List<String> BUNDLED_SOUNDS = List.of(
-		"bonk", "punch", "shot", "squeak", "oh-baby-a-triple",
-		"emotional-damage", "thats-a-lot-of-damage", "okay");
-
-	private static final int PENDING_SPEC_TIMEOUT_TICKS = 10;
 	/** Drop tracked projectiles that never produced a hitsplat after this many ticks. */
 	static final int PROJECTILE_TTL_TICKS = 10;
 	private static final int RECEIVED_KEY = -2;
-
-	/**
-	 * NPC IDs whose hitsplats never trigger SFX. Add IDs here to exclude more NPCs — e.g. ones
-	 * whose hitsplats aren't "real" attacks (clones, summoned helpers, multi-bodied bosses, etc.).
-	 * Users can exclude additional NPC ids at runtime via the panel; see {@link #userExcludedNpcIds}.
-	 */
-	private static final Set<Integer> EXCLUDED_NPC_IDS = Set.of(
-		11706,
-		11707);
 
 	@Inject private Client client;
 	@Inject private AudioPlayer audioPlayer;
 	@Inject private ClientToolbar clientToolbar;
 	@Inject private ClientThread clientThread;
 	@Inject private ConfigManager configManager;
+	@Inject private EventBus eventBus;
 	@Inject private ItemManager itemManager;
 	@Inject private WeaponChatboxSearch weaponSearch;
 	@Inject private CustomWeaponSfxConfig config;
 
-	private ExecutorService executor;
 	private CustomWeaponSfxPanel panel;
 	private NavigationButton navButton;
 	private CustomWeaponSfxConfigStore store;
+	private SoundLibrary library;
+	private SoundPlayer soundPlayer;
+	private WeaponManager weapons;
 
-	private final List<WeaponEntry> weaponEntries = new CopyOnWriteArrayList<>();
 	private final List<TriggerGroup> receivedGroups = new CopyOnWriteArrayList<>();
 	private final List<TriggerGroup> globalWeaponGroups = new CopyOnWriteArrayList<>();
-	private List<String> bundledSounds = new ArrayList<>();
-	private List<String> availableSounds = new ArrayList<>();
 
-	private int lastSpecPct = -1;
-	private int pendingSpecItemId = -1;
-	private int pendingSpecTick = -1;
+	private final SpecAttackTracker spec = new SpecAttackTracker();
 
 	/** One-tick-delayed equipped-weapon snapshot, used to attribute a projectile to the weapon that
 	 *  launched it even when the player swaps weapons on the same tick the shot was fired. */
 	private final TickWeaponSnapshot launchWeapon = new TickWeaponSnapshot();
 
-	/** User-configured NPC id exclusions, on top of {@link #EXCLUDED_NPC_IDS}. Swapped atomically. */
-	private volatile Set<Integer> userExcludedNpcIds = java.util.Collections.emptySet();
+	private NpcExclusionFilter npcFilter;
+	private SfxOptions options;
 
-	/** User-configured NPC name exclusions (lowercased, trimmed) matched against the target's name. */
-	private volatile Set<String> userExcludedNpcNames = java.util.Collections.emptySet();
-
-	private final EnumMap<SfxOption, Boolean> options = new EnumMap<>(SfxOption.class);
 	private int thrallTicksRemaining = 0;
 	private boolean suppressReceivedOnDeath = false;
 
@@ -151,6 +128,25 @@ public class CustomWeaponSfxPlugin extends Plugin
 		clientToolbar.addNavigation(navButton);
 	}
 
+	/**
+	 * Opens this plugin's configuration panel. We don't have access to the ConfigPlugin directly, so we
+	 * emulate the overlay "Configure" click it listens for, carrying a throwaway overlay bound to this
+	 * plugin so ConfigPlugin can resolve which config to show.
+	 */
+	private void openConfiguration()
+	{
+		Overlay overlay = new Overlay(this)
+		{
+			@Override
+			public java.awt.Dimension render(Graphics2D graphics)
+			{
+				return null;
+			}
+		};
+		eventBus.post(new OverlayMenuClicked(
+			new OverlayMenuEntry(MenuAction.RUNELITE_OVERLAY_CONFIG, null, null), overlay));
+	}
+
 	@Subscribe
 	public void onConfigChanged(ConfigChanged event)
 	{
@@ -161,41 +157,54 @@ public class CustomWeaponSfxPlugin extends Plugin
 		}
 	}
 
+	@Subscribe
+	public void onGameStateChanged(GameStateChanged event)
+	{
+		updateLoginButtons();
+	}
+
+	/** Enables the search/equipped/copy buttons only while logged in, since they read live game state. */
+	private void updateLoginButtons()
+	{
+		CustomWeaponSfxPanel p = panel;
+		if (p == null) return;
+		boolean loggedIn = client.getGameState() == GameState.LOGGED_IN;
+		SwingUtilities.invokeLater(() -> p.setLoginButtonsEnabled(loggedIn));
+	}
+
 	@Override
 	protected void startUp()
 	{
-		executor = Executors.newSingleThreadExecutor();
-		SOUNDS_DIR.mkdirs();
+		library = new SoundLibrary();
+		soundPlayer = new SoundPlayer(audioPlayer, SoundLibrary.SOUNDS_DIR);
+		soundPlayer.start();
 
 		store = new CustomWeaponSfxConfigStore(configManager);
+		npcFilter = new NpcExclusionFilter(store);
+		options = new SfxOptions(store);
+		weapons = new WeaponManager(store, this::rebuildPanel, this::showWeaponConflict);
 
-		weaponEntries.clear();
-		weaponEntries.addAll(store.loadWeapons());
+		weapons.load();
 		receivedGroups.clear();
 		receivedGroups.addAll(store.loadDefaultGroups(CustomWeaponSfxPanel.RECEIVED_GROUPS_PREFIX));
 		globalWeaponGroups.clear();
 		globalWeaponGroups.addAll(store.loadDefaultGroups(CustomWeaponSfxPanel.GLOBAL_WEAPON_GROUPS_PREFIX));
-		bundledSounds = scanBundledSounds();
-		availableSounds = scanSounds();
 
-		for (SfxOption option : SfxOption.values())
-			options.put(option, store.getBool(option.configKey(), option.defaultValue()));
+		options.load();
 
-		userExcludedNpcIds = java.util.Collections.unmodifiableSet(
-			CustomWeaponSfxConfigStore.parseNpcIds(store.getExcludedNpcIdsRaw()));
-		userExcludedNpcNames = java.util.Collections.unmodifiableSet(
-			CustomWeaponSfxConfigStore.parseNpcNames(store.getExcludedNpcNamesRaw()));
+		npcFilter.load();
 
-		panel = new CustomWeaponSfxPanel(store, itemManager, this::openWeaponSearch, this::addEquippedWeapon, this::removeWeapon, this::playSoundFile, this::fireGroup, this::resetAllData, this::refreshSounds, this::onOptionChanged, this::onExcludedNpcIdsChanged, this::onExcludedNpcNamesChanged);
+		panel = new CustomWeaponSfxPanel(store, itemManager, this::openWeaponSearch, this::addEquippedWeapon, weapons::remove, this::editWeaponViaSearch, this::editWeaponToEquipped, this::copyWeapon, this::copyWeaponToEquipped, soundPlayer::playSoundFile, soundPlayer::fireGroup, this::resetAllData, this::refreshSounds, this::openConfiguration, this::onOptionChanged, npcFilter::setIds, npcFilter::setNames);
 
 		rebuildNavButton();
 
-		panel.rebuild(new ArrayList<>(weaponEntries), availableSounds, bundledSounds, receivedGroups, globalWeaponGroups);
+		panel.rebuild(weapons.snapshot(), library.getAvailable(), library.getBundled(), receivedGroups, globalWeaponGroups);
 
 		clientThread.invoke(() ->
 		{
-			lastSpecPct = client.getVarpValue(VarPlayerID.SA_ENERGY);
+			spec.init(client.getVarpValue(VarPlayerID.SA_ENERGY));
 			launchWeapon.init(getEquippedWeaponId());
+			updateLoginButtons();
 		});
 
 		log.debug("Custom Weapon SFX started!");
@@ -204,27 +213,28 @@ public class CustomWeaponSfxPlugin extends Plugin
 	@Override
 	protected void shutDown()
 	{
-		executor.shutdownNow();
-		executor = null;
+		if (soundPlayer != null) soundPlayer.shutDown();
+		soundPlayer = null;
+		library = null;
 
 		clientToolbar.removeNavigation(navButton);
 		navButton = null;
 		panel = null;
 		store = null;
+		if (weapons != null) weapons.clear();
+		weapons = null;
 
 		receivedGroups.clear();
 		globalWeaponGroups.clear();
-		bundledSounds.clear();
 
-		lastSpecPct = -1;
-		pendingSpecItemId = -1;
-		pendingSpecTick = -1;
+		spec.reset();
 		launchWeapon.reset();
 		thrallTicksRemaining = 0;
 		suppressReceivedOnDeath = false;
-		options.clear();
-		userExcludedNpcIds = java.util.Collections.emptySet();
-		userExcludedNpcNames = java.util.Collections.emptySet();
+		if (options != null) options.clear();
+		options = null;
+		if (npcFilter != null) npcFilter.clear();
+		npcFilter = null;
 
 		hits.clear();
 
@@ -241,19 +251,9 @@ public class CustomWeaponSfxPlugin extends Plugin
 		// GameTick) are attributed to the weapon held at the start of the tick, even after a same-tick swap.
 		launchWeapon.onGameTick(getEquippedWeaponId());
 
-		int nowSpec = client.getVarpValue(VarPlayerID.SA_ENERGY);
-
-		if (lastSpecPct >= 0 && nowSpec < lastSpecPct)
+		if (spec.onTick(client.getVarpValue(VarPlayerID.SA_ENERGY), client.getTickCount()))
 		{
 			onSpecFired();
-		}
-		lastSpecPct = nowSpec;
-
-		if (pendingSpecItemId >= 0
-			&& client.getTickCount() - pendingSpecTick > PENDING_SPEC_TIMEOUT_TICKS)
-		{
-			pendingSpecItemId = -1;
-			pendingSpecTick = -1;
 		}
 
 		if (thrallTicksRemaining > 0) thrallTicksRemaining--;
@@ -305,7 +305,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 		// getEndCycle() is the game cycle the projectile reaches its target; matched against the game
 		// clock at hit time so attribution is distance-independent (no per-tick travel estimate).
 		projectiles.onProjectileSpawned(weaponId, p.getTargetActor(), p.getTargetPoint(),
-			p.getEndCycle(), client.getTickCount(), pendingSpecItemId >= 0);
+			p.getEndCycle(), client.getTickCount(), spec.wasSpec());
 	}
 
 	@Subscribe
@@ -326,7 +326,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 
 		if (!event.getHitsplat().isMine()) return;
 
-		if (actor instanceof NPC && isExcludedNpc((NPC) actor)) return;
+		if (actor instanceof NPC && npcFilter.isExcluded((NPC) actor)) return;
 
 		boolean isMax   = TriggerEvaluator.isMaxHit(event.getHitsplat().getHitsplatType());
 
@@ -344,11 +344,11 @@ public class CustomWeaponSfxPlugin extends Plugin
 		else
 		{
 			weaponId = attackWeapon.resolveWeaponId(getEquippedWeaponId());
-			wasSpec  = pendingSpecItemId >= 0;
+			wasSpec  = spec.wasSpec();
 		}
 		if (weaponId < 0) return;
 
-		WeaponEntry entry = getWeaponEntry(weaponId);
+		WeaponEntry entry = weapons.find(weaponId);
 		if (entry != null && entry.isEnabled())
 			hits.add(new DeferredHit(weaponId, entry.getGroups(), wasSpec, amount, isMax, tick, actor));
 		else
@@ -364,7 +364,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 		{
 			if (!group.getTriggers().contains(Triggers.PLAYER_DEATH)) continue;
 			suppressReceivedOnDeath = true;
-			fireGroup(group);
+			soundPlayer.fireGroup(group);
 		}
 	}
 
@@ -392,7 +392,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 			boolean suppressZero = opt(SfxOption.IGNORE_ZERO_THRALL) && thrallTicksRemaining > 0;
 			if (!(attack.groups == receivedGroups && suppressReceivedOnDeath))
 			{
-				fireMatchingGroups(attack.groups, outcome.wasSpec, outcome.anyHit, outcome.allZero, outcome.allMax,
+				soundPlayer.fireMatchingGroups(attack.groups, outcome.wasSpec, outcome.anyHit, outcome.allZero, outcome.allMax,
 						suppressMax, suppressZero, outcome.isKill, EnumSet.noneOf(Triggers.class));
 			}
 
@@ -404,7 +404,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 						.filter(g -> !g.getTriggers().isEmpty())
 						.flatMap(g -> g.getTriggers().stream())
 						.collect(Collectors.toCollection(() -> EnumSet.noneOf(Triggers.class)));
-				fireMatchingGroups(globalWeaponGroups, outcome.wasSpec, outcome.anyHit, outcome.allZero, outcome.allMax,
+				soundPlayer.fireMatchingGroups(globalWeaponGroups, outcome.wasSpec, outcome.anyHit, outcome.allZero, outcome.allMax,
 						suppressMax, suppressZero, outcome.isKill, weaponCoveredTriggers);
 			}
 
@@ -414,49 +414,21 @@ public class CustomWeaponSfxPlugin extends Plugin
 		// so the next normal attack isn't silently swallowed by the wasSpec flag.
 		if (specHitsplatSeen)
 		{
-			pendingSpecItemId = -1;
-			pendingSpecTick   = -1;
+			spec.clearWindow();
 		}
-	}
-
-	private boolean isExcludedNpc(NPC npc)
-	{
-		if (EXCLUDED_NPC_IDS.contains(npc.getId()) || userExcludedNpcIds.contains(npc.getId()))
-			return true;
-		String name = npc.getName();
-		return name != null && userExcludedNpcNames.contains(name.trim().toLowerCase());
-	}
-
-	private void onExcludedNpcIdsChanged(String raw)
-	{
-		store.setExcludedNpcIds(raw);
-		userExcludedNpcIds = java.util.Collections.unmodifiableSet(
-			CustomWeaponSfxConfigStore.parseNpcIds(raw));
-	}
-
-	private void onExcludedNpcNamesChanged(String raw)
-	{
-		store.setExcludedNpcNames(raw);
-		userExcludedNpcNames = java.util.Collections.unmodifiableSet(
-			CustomWeaponSfxConfigStore.parseNpcNames(raw));
 	}
 
 	private void resetAllData()
 	{
-		store.resetAll(weaponEntries,
+		store.resetAll(weapons.snapshot(),
 			CustomWeaponSfxPanel.RECEIVED_GROUPS_PREFIX, receivedGroups,
 			CustomWeaponSfxPanel.GLOBAL_WEAPON_GROUPS_PREFIX, globalWeaponGroups);
-		weaponEntries.clear();
+		weapons.clear();
 		receivedGroups.clear();
 		globalWeaponGroups.clear();
-		userExcludedNpcIds = java.util.Collections.emptySet();
-		userExcludedNpcNames = java.util.Collections.emptySet();
+		npcFilter.clear();
 
-		for (SfxOption option : SfxOption.values())
-		{
-			options.put(option, option.defaultValue());
-			store.setBool(option.configKey(), option.defaultValue());
-		}
+		options.reset();
 		if (panel != null) panel.resetToggles();
 
 		rebuildPanel();
@@ -464,13 +436,12 @@ public class CustomWeaponSfxPlugin extends Plugin
 
 	private boolean opt(SfxOption option)
 	{
-		return options.getOrDefault(option, option.defaultValue());
+		return options.get(option);
 	}
 
 	private void onOptionChanged(SfxOption option, boolean value)
 	{
-		options.put(option, value);
-		store.setBool(option.configKey(), value);
+		options.set(option, value);
 	}
 
 	private boolean isProtectionPrayerActive()
@@ -485,11 +456,10 @@ public class CustomWeaponSfxPlugin extends Plugin
 		int weaponId = getEquippedWeaponId();
 		if (weaponId < 0) return;
 
-		WeaponEntry entry = getWeaponEntry(weaponId);
+		WeaponEntry entry = weapons.find(weaponId);
 		if (entry == null || entry.getGroups().isEmpty()) return;
 
-		pendingSpecItemId = weaponId;
-		pendingSpecTick = client.getTickCount();
+		spec.arm(weaponId, client.getTickCount());
 	}
 
 	private int getEquippedWeaponId()
@@ -500,27 +470,34 @@ public class CustomWeaponSfxPlugin extends Plugin
 		return weapon == null ? -1 : weapon.getId();
 	}
 
+	/**
+	 * Shows a "must be logged in" warning (with {@code action} filled into the message) and returns
+	 * {@code false} if not logged in; otherwise returns {@code true}. Must be called on the client thread.
+	 */
+	private boolean requireLoggedIn(String action)
+	{
+		if (client.getGameState() == GameState.LOGGED_IN) return true;
+		SwingUtilities.invokeLater(() ->
+			JOptionPane.showMessageDialog(
+				SwingUtilities.getWindowAncestor(client.getCanvas()),
+				"You must be logged in to " + action + ".",
+				"Not Logged In",
+				JOptionPane.WARNING_MESSAGE
+			)
+		);
+		return false;
+	}
+
 	private void openWeaponSearch()
 	{
 		clientThread.invoke(() ->
 		{
-			if (client.getGameState() != GameState.LOGGED_IN)
-			{
-				SwingUtilities.invokeLater(() ->
-					JOptionPane.showMessageDialog(
-						SwingUtilities.getWindowAncestor(client.getCanvas()),
-						"You must be logged in to search for weapons.",
-						"Not Logged In",
-						JOptionPane.WARNING_MESSAGE
-					)
-				);
-				return;
-			}
+			if (!requireLoggedIn("search for weapons")) return;
 			weaponSearch
 				.onItemSelected(itemId ->
 				{
 					String name = client.getItemDefinition(itemId).getName();
-					addWeapon(itemId, name);
+					weapons.add(itemId, name);
 				})
 				.build();
 		});
@@ -531,52 +508,97 @@ public class CustomWeaponSfxPlugin extends Plugin
 	{
 		clientThread.invoke(() ->
 		{
-			if (client.getGameState() != GameState.LOGGED_IN)
-			{
-				SwingUtilities.invokeLater(() ->
-					JOptionPane.showMessageDialog(
-						SwingUtilities.getWindowAncestor(client.getCanvas()),
-						"You must be logged in to add an equipped weapon.",
-						"Not Logged In",
-						JOptionPane.WARNING_MESSAGE
-					)
-				);
-				return;
-			}
+			if (!requireLoggedIn("add an equipped weapon")) return;
 			int weaponId = getEquippedWeaponId();
 			if (weaponId < 0) return;
 			String name = client.getItemDefinition(weaponId).getName();
-			addWeapon(weaponId, name);
+			weapons.add(weaponId, name);
 		});
 	}
 
-	private void addWeapon(int itemId, String name)
+	/** Opens the weapon search and re-points the existing {@code oldItemId} weapon at the picked item. */
+	private void editWeaponViaSearch(int oldItemId)
 	{
-		if (getWeaponEntry(itemId) != null) return;
-
-		List<TriggerGroup> groups = new ArrayList<>();
-		WeaponEntry entry = new WeaponEntry(itemId, name, groups);
-		weaponEntries.add(entry);
-
-		store.saveWeapon(entry);
-		store.saveWeaponIds(weaponEntries);
-
-		rebuildPanel();
+		clientThread.invoke(() ->
+		{
+			if (!requireLoggedIn("search for weapons")) return;
+			weaponSearch
+				.onItemSelected(itemId ->
+				{
+					String name = client.getItemDefinition(itemId).getName();
+					weapons.change(oldItemId, itemId, name);
+				})
+				.build();
+		});
+		client.getCanvas().requestFocusInWindow();
 	}
 
-	private void removeWeapon(int itemId)
+	/** Re-points the existing {@code oldItemId} weapon at the currently equipped weapon. */
+	private void editWeaponToEquipped(int oldItemId)
 	{
-		WeaponEntry entry = getWeaponEntry(itemId);
-		if (entry != null) store.removeWeapon(entry);
-		weaponEntries.removeIf(e -> e.getItemId() == itemId);
-		store.saveWeaponIds(weaponEntries);
+		clientThread.invoke(() ->
+		{
+			if (!requireLoggedIn("update to an equipped weapon")) return;
+			int weaponId = getEquippedWeaponId();
+			if (weaponId < 0) return;
+			String name = client.getItemDefinition(weaponId).getName();
+			weapons.change(oldItemId, weaponId, name);
+		});
+	}
 
-		rebuildPanel();
+	/**
+	 * Opens the weapon search and creates a new weapon entry for the picked item with a deep copy of
+	 * {@code sourceItemId}'s sound groups. A copy needs its own item (the item id is the config key), so
+	 * the user picks the target weapon rather than duplicating onto the same id.
+	 */
+	private void copyWeapon(int sourceItemId)
+	{
+		clientThread.invoke(() ->
+		{
+			if (!requireLoggedIn("copy a weapon")) return;
+			weaponSearch
+				.onItemSelected(itemId ->
+				{
+					String name = client.getItemDefinition(itemId).getName();
+					weapons.copy(sourceItemId, itemId, name);
+				})
+				.build();
+		});
+		client.getCanvas().requestFocusInWindow();
+	}
+
+	/**
+	 * Creates a new weapon entry for the currently equipped weapon with a deep copy of
+	 * {@code sourceItemId}'s sound groups — the no-search counterpart to {@link #copyWeapon(int)}.
+	 */
+	private void copyWeaponToEquipped(int sourceItemId)
+	{
+		clientThread.invoke(() ->
+		{
+			if (!requireLoggedIn("copy a weapon")) return;
+			int weaponId = getEquippedWeaponId();
+			if (weaponId < 0) return;
+			String name = client.getItemDefinition(weaponId).getName();
+			weapons.copy(sourceItemId, weaponId, name);
+		});
+	}
+
+	/** Shows the "already configured" warning surfaced by {@link WeaponManager} on an id collision. */
+	private void showWeaponConflict(String message)
+	{
+		SwingUtilities.invokeLater(() ->
+			JOptionPane.showMessageDialog(
+				SwingUtilities.getWindowAncestor(client.getCanvas()),
+				message,
+				"Weapon Already Configured",
+				JOptionPane.WARNING_MESSAGE
+			)
+		);
 	}
 
 	private void refreshSounds()
 	{
-		availableSounds = scanSounds();
+		library.refresh();
 		rebuildPanel();
 	}
 
@@ -584,119 +606,10 @@ public class CustomWeaponSfxPlugin extends Plugin
 	{
 		CustomWeaponSfxPanel p = panel;
 		if (p == null) return;
-		List<WeaponEntry> snapshot = new ArrayList<>(weaponEntries);
-		List<String> sounds = availableSounds;
-		List<String> bundled = bundledSounds;
+		List<WeaponEntry> snapshot = weapons.snapshot();
+		List<String> sounds = library.getAvailable();
+		List<String> bundled = library.getBundled();
 		SwingUtilities.invokeLater(() -> p.rebuild(snapshot, sounds, bundled, receivedGroups, globalWeaponGroups));
-	}
-
-	private WeaponEntry getWeaponEntry(int itemId)
-	{
-		for (WeaponEntry entry : weaponEntries)
-		{
-			if (entry.getItemId() == itemId) return entry;
-		}
-		return null;
-	}
-
-	private void fireMatchingGroups(List<TriggerGroup> groups, boolean wasSpec,
-									boolean anyHit, boolean allZero, boolean allMax,
-									boolean suppressMax, boolean suppressZero, boolean isKill,
-									Set<Triggers> weaponCoveredTriggers)
-	{
-		for (TriggerGroup group : TriggerEvaluator.selectFiringGroups(groups, wasSpec, anyHit, allZero,
-			allMax, suppressMax, suppressZero, isKill, weaponCoveredTriggers))
-		{
-			fireGroup(group);
-		}
-	}
-
-	private void fireGroup(TriggerGroup group)
-	{
-		int chance = group.getChance();
-		if (chance <= 0) return;
-		if (chance < 100 && ThreadLocalRandom.current().nextInt(100) >= chance) return;
-		List<SoundEntry> sounds = group.getSounds();
-		if (sounds.isEmpty()) return;
-		// A lone sound always plays; with several, pick one weighted by each sound's chance.
-		SoundEntry se = sounds.size() == 1 ? sounds.get(0) : pickWeighted(sounds);
-		if (se == null) return;
-		playSoundFile(se.getSoundFile(), se.getVolume());
-	}
-
-	/**
-	 * Picks a sound at random weighted by each entry's {@link SoundEntry#getWeight() weight}.
-	 * Returns {@code null} if every weight is 0 (nothing should play).
-	 */
-	static SoundEntry pickWeighted(List<SoundEntry> sounds)
-	{
-		double total = 0;
-		for (SoundEntry s : sounds) total += Math.max(0, s.getWeight());
-		if (total <= 0) return null;
-
-		double roll = ThreadLocalRandom.current().nextDouble(total);
-		for (SoundEntry s : sounds)
-		{
-			roll -= Math.max(0, s.getWeight());
-			if (roll < 0) return s;
-		}
-		return sounds.get(sounds.size() - 1); // unreachable: roll < total guarantees a hit
-	}
-
-	private void playSoundFile(String soundFile, int volume)
-	{
-		if (executor == null || executor.isShutdown()) return;
-		if (volume == 0) return;
-		float gain = TriggerEvaluator.volumeToGain(volume);
-
-		if (soundFile == null || soundFile.isEmpty() || soundFile.startsWith(CustomWeaponSfxPanel.BUNDLED_PREFIX))
-		{
-			String name = (soundFile == null || soundFile.isEmpty())
-				? "squeak.wav"
-				: soundFile.substring(CustomWeaponSfxPanel.BUNDLED_PREFIX.length()) + ".wav";
-			executor.submit(() ->
-			{
-				try { audioPlayer.play(CustomWeaponSfxPlugin.class, name, gain); }
-				catch (Exception e) { log.debug("Failed to play bundled sound {}", name, e); }
-			});
-		}
-		else
-		{
-			File f = new File(SOUNDS_DIR, soundFile + ".wav");
-			if (!f.exists())
-			{
-				log.debug("Sound file missing: {}", f.getAbsolutePath());
-				return;
-			}
-			executor.submit(() ->
-			{
-				try { audioPlayer.play(f, gain); }
-				catch (Exception e) { log.debug("Failed to play {}", soundFile, e); }
-			});
-		}
-	}
-
-	private List<String> scanSounds()
-	{
-		List<String> sounds = new ArrayList<>();
-		File[] files = SOUNDS_DIR.listFiles(f -> f.isFile() && f.getName().toLowerCase().endsWith(".wav"));
-		if (files != null)
-		{
-			for (File f : files)
-			{
-				String name = f.getName();
-				sounds.add(name.substring(0, name.length() - 4));
-			}
-			sounds.sort(String.CASE_INSENSITIVE_ORDER);
-		}
-		return sounds;
-	}
-
-	private List<String> scanBundledSounds()
-	{
-		List<String> sounds = new ArrayList<>(BUNDLED_SOUNDS);
-		sounds.sort(String.CASE_INSENSITIVE_ORDER);
-		return sounds;
 	}
 
 	private static BufferedImage loadIcon()

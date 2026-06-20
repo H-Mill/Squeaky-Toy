@@ -126,7 +126,7 @@ public class WeaponChatboxSearch extends ChatboxTextInput
 			item.setItemQuantity(10000);
 			item.setItemQuantityMode(ItemQuantityMode.NEVER);
 			item.setBorderType(1);
-			item.setAction(0, "Add weapon");
+			item.setAction(0, "Add weapon (" + itemComposition.getId() + ")");
 			item.setHasListener(true);
 
 			if (index == idx)

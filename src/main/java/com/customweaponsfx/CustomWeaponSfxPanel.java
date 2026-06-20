@@ -53,13 +53,23 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	static final String RECEIVED_GROUPS_PREFIX = "defaultReceived";
 	static final String GLOBAL_WEAPON_GROUPS_PREFIX = "globalWeapon";
 
-	private static final float TITLE_SIZE = 22f;
+	private static final float TITLE_SIZE = 17f;
 	private static final float SECTION_TITLE_SIZE = 16f;
 
 	private static final ImageIcon DELETE_ICON;
 	private static final ImageIcon DELETE_HOVER_ICON;
 	private static final ImageIcon EDIT_ICON;
 	private static final ImageIcon EDIT_HOVER_ICON;
+	private static final ImageIcon CLONE_SEARCH_ICON;
+	private static final ImageIcon CLONE_SEARCH_HOVER_ICON;
+	private static final ImageIcon CLONE_EQUIPPED_ICON;
+	private static final ImageIcon CLONE_EQUIPPED_HOVER_ICON;
+	private static final ImageIcon ADD_SEARCH_ICON;
+	private static final ImageIcon ADD_SEARCH_HOVER_ICON;
+	private static final ImageIcon ADD_PLUS_ICON;
+	private static final ImageIcon ADD_PLUS_HOVER_ICON;
+	private static final ImageIcon FOLDER_ICON;
+	private static final ImageIcon FOLDER_HOVER_ICON;
 	private static final ImageIcon EXPAND_ICON;
 	private static final ImageIcon EXPAND_HOVER_ICON;
 	private static final ImageIcon COLLAPSE_ICON;
@@ -71,43 +81,82 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	private static final BufferedImage REFRESH_IMG;
 	private static final ImageIcon TEST_ICON;
 	private static final ImageIcon TEST_HOVER_ICON;
+	private static final ImageIcon CONFIG_ICON;
+	private static final ImageIcon CONFIG_HOVER_ICON;
+	private static final ImageIcon KOFI_ICON;
+	private static final ImageIcon KOFI_HOVER_ICON;
+	private static final String KOFI_URL = "https://ko-fi.com/hmill8";
 
 	static
 	{
-		final BufferedImage deleteImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "delete_icon.png");
+		final BufferedImage deleteImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "icon_delete.png");
 		DELETE_ICON = new ImageIcon(deleteImg);
 		DELETE_HOVER_ICON = new ImageIcon(ImageUtil.luminanceOffset(deleteImg, -100));
 
-		final BufferedImage editImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "edit_icon.png");
+		final BufferedImage editImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "icon_edit.png");
 		EDIT_ICON = new ImageIcon(editImg);
 		EDIT_HOVER_ICON = new ImageIcon(ImageUtil.luminanceOffset(editImg, -100));
 
-		// right_arrow = collapsed (click to expand), down_arrow = expanded (click to collapse)
-		final BufferedImage expandImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "right_arrow.png");
+		final BufferedImage cloneSearchImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "icon_clone_search.png");
+		CLONE_SEARCH_ICON = new ImageIcon(cloneSearchImg);
+		CLONE_SEARCH_HOVER_ICON = new ImageIcon(ImageUtil.luminanceOffset(cloneSearchImg, -100));
+
+		final BufferedImage cloneEquippedImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "icon_clone_equipped.png");
+		CLONE_EQUIPPED_ICON = new ImageIcon(cloneEquippedImg);
+		CLONE_EQUIPPED_HOVER_ICON = new ImageIcon(ImageUtil.luminanceOffset(cloneEquippedImg, -100));
+
+		final BufferedImage addSearchImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "icon_add_search.png");
+		ADD_SEARCH_ICON = new ImageIcon(addSearchImg);
+		ADD_SEARCH_HOVER_ICON = new ImageIcon(ImageUtil.luminanceOffset(addSearchImg, -100));
+
+		final BufferedImage addEquippedImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "icon_add_equipped.png");
+		ADD_PLUS_ICON = new ImageIcon(addEquippedImg);
+		ADD_PLUS_HOVER_ICON = new ImageIcon(ImageUtil.luminanceOffset(addEquippedImg, -100));
+
+		final BufferedImage folderImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "icon_folder.png");
+		FOLDER_ICON = new ImageIcon(folderImg);
+		FOLDER_HOVER_ICON = new ImageIcon(ImageUtil.luminanceOffset(folderImg, -100));
+
+		final BufferedImage expandImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "icon_right_arrow.png");
 		EXPAND_ICON = new ImageIcon(expandImg);
 		EXPAND_HOVER_ICON = new ImageIcon(ImageUtil.luminanceOffset(expandImg, -100));
 
-		final BufferedImage collapseImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "down_arrow.png");
+		final BufferedImage collapseImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "icon_down_arrow.png");
 		COLLAPSE_ICON = new ImageIcon(collapseImg);
 		COLLAPSE_HOVER_ICON = new ImageIcon(ImageUtil.luminanceOffset(collapseImg, -100));
 
-		final BufferedImage trashImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "trash.png");
+		final BufferedImage trashImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "icon_delete.png");
 		TRASH_ICON = new ImageIcon(trashImg);
 		TRASH_HOVER_ICON = new ImageIcon(ImageUtil.luminanceOffset(trashImg, -100));
 
-		final BufferedImage refreshImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "refresh.png");
+		final BufferedImage refreshImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "icon_refresh.png");
 		REFRESH_IMG = refreshImg;
 		REFRESH_ICON = new ImageIcon(refreshImg);
 		REFRESH_HOVER_ICON = new ImageIcon(ImageUtil.luminanceOffset(refreshImg, -100));
 
-		final BufferedImage testImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "test_sound.png");
+		final BufferedImage testImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "icon_test_sound.png");
 		TEST_ICON = new ImageIcon(testImg);
 		TEST_HOVER_ICON = new ImageIcon(ImageUtil.luminanceOffset(testImg, -100));
+
+		final BufferedImage configImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "icon_cog.png");
+		CONFIG_ICON = new ImageIcon(configImg);
+		CONFIG_HOVER_ICON = new ImageIcon(ImageUtil.luminanceOffset(configImg, -100));
+
+		final BufferedImage kofiImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "icon_kofi.png");
+		KOFI_ICON = new ImageIcon(kofiImg);
+		KOFI_HOVER_ICON = new ImageIcon(ImageUtil.luminanceOffset(kofiImg, -100));
 	}
 
 	private List<String> bundledSounds = new ArrayList<>();
 	private final Set<Integer> expandedWeapons = new HashSet<>();
 	private final Set<String> expandedDefaults = new HashSet<>();
+
+	/** Whether actions that read live game state (search/equipped/copy) are currently usable. */
+	private boolean loggedIn;
+	/** Login-gated buttons in the always-present top panel (built once). */
+	private final List<JButton> topLoginButtons = new ArrayList<>();
+	/** Login-gated buttons in the weapon rows; rebuilt with the list, so cleared each {@link #rebuild}. */
+	private final List<JButton> weaponLoginButtons = new ArrayList<>();
 
 	/** Active spin animation for the refresh button, if any; restarted (not stacked) on rapid re-clicks. */
 	private Timer refreshSpinTimer;
@@ -117,10 +166,15 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	private final Runnable onOpenSearch;
 	private final Runnable onAddEquipped;
 	private final Consumer<Integer> onRemoveWeapon;
+	private final Consumer<Integer> onEditWeaponSearch;
+	private final Consumer<Integer> onEditWeaponEquipped;
+	private final Consumer<Integer> onCopyWeapon;
+	private final Consumer<Integer> onCopyWeaponEquipped;
 	private final BiConsumer<String, Integer> onTestSound;
 	private final Consumer<TriggerGroup> onTestGroup;
 	private final Runnable onReset;
 	private final Runnable onRefreshSounds;
+	private final Runnable onOpenConfig;
 	private final BiConsumer<SfxOption, Boolean> onOptionToggled;
 	private final Consumer<String> onExcludedNpcIdsChanged;
 	private final Consumer<String> onExcludedNpcNamesChanged;
@@ -139,10 +193,15 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		Runnable onOpenSearch,
 		Runnable onAddEquipped,
 		Consumer<Integer> onRemoveWeapon,
+		Consumer<Integer> onEditWeaponSearch,
+		Consumer<Integer> onEditWeaponEquipped,
+		Consumer<Integer> onCopyWeapon,
+		Consumer<Integer> onCopyWeaponEquipped,
 		BiConsumer<String, Integer> onTestSound,
 		Consumer<TriggerGroup> onTestGroup,
 		Runnable onReset,
 		Runnable onRefreshSounds,
+		Runnable onOpenConfig,
 		BiConsumer<SfxOption, Boolean> onOptionToggled,
 		Consumer<String> onExcludedNpcIdsChanged,
 		Consumer<String> onExcludedNpcNamesChanged)
@@ -152,10 +211,15 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		this.onOpenSearch = onOpenSearch;
 		this.onAddEquipped = onAddEquipped;
 		this.onRemoveWeapon = onRemoveWeapon;
+		this.onEditWeaponSearch = onEditWeaponSearch;
+		this.onEditWeaponEquipped = onEditWeaponEquipped;
+		this.onCopyWeapon = onCopyWeapon;
+		this.onCopyWeaponEquipped = onCopyWeaponEquipped;
 		this.onTestSound = onTestSound;
 		this.onTestGroup = onTestGroup;
 		this.onReset = onReset;
 		this.onRefreshSounds = onRefreshSounds;
+		this.onOpenConfig = onOpenConfig;
 		this.onOptionToggled = onOptionToggled;
 		this.onExcludedNpcIdsChanged = onExcludedNpcIdsChanged;
 		this.onExcludedNpcNamesChanged = onExcludedNpcNamesChanged;
@@ -176,9 +240,6 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	{
 		JPanel top = boxColumn(null);
 
-		// Match the Look-and-Feel's default button font so labels read consistently with the buttons.
-		Font buttonFont = new JButton().getFont();
-
 		JPanel titleRow = new JPanel();
 		titleRow.setLayout(new BoxLayout(titleRow, BoxLayout.X_AXIS));
 		titleRow.setAlignmentX(Component.LEFT_ALIGNMENT);
@@ -188,85 +249,74 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		setBoldFont(title, TITLE_SIZE);
 		titleRow.add(title);
 
-		titleRow.add(Box.createHorizontalGlue());
-
-		JButton resetBtn = new JButton(TRASH_ICON);
-		resetBtn.setRolloverIcon(TRASH_HOVER_ICON);
-		resetBtn.setToolTipText("Reset All Data");
-		resetBtn.setMargin(new Insets(2, 6, 2, 6));
-		resetBtn.addActionListener(e ->
-		{
-			if (confirmYesNo("Reset all weapons and sound groups back to defaults?", "Reset All Data"))
-				onReset.run();
-		});
-		titleRow.add(resetBtn);
-
 		top.add(titleRow);
 		top.add(Box.createVerticalStrut(4));
 
-		JLabel customSoundDirections = new JLabel("<html>Want a custom sfx?<br>" +
-				"1. Place <b>.wav</b> files in:</html>");
-		customSoundDirections.setFont(buttonFont);
-		customSoundDirections.setAlignmentX(Component.LEFT_ALIGNMENT);
-		top.add(customSoundDirections);
+		// Action buttons sit in their own row directly beneath the title.
+		JPanel btnRow = new JPanel();
+		btnRow.setLayout(new BoxLayout(btnRow, BoxLayout.X_AXIS));
+		btnRow.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-		JButton folderLink = new JButton("<html><u>.runelite/customweaponsfx/</u></html>");
-		folderLink.setFont(buttonFont);
-		folderLink.setBorderPainted(false);
-		folderLink.setContentAreaFilled(false);
-		folderLink.setFocusPainted(false);
-		folderLink.setForeground(Color.CYAN);
-		folderLink.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-		folderLink.setAlignmentX(Component.LEFT_ALIGNMENT);
-		folderLink.addActionListener(e -> LinkBrowser.open(CustomWeaponSfxPlugin.SOUNDS_DIR.toString()));
-		top.add(folderLink);
+		JButton addSearchBtn = makeImageButton(ADD_SEARCH_ICON, ADD_SEARCH_HOVER_ICON,
+			"Search for a weapon to configure");
+		addSearchBtn.addActionListener(e -> onOpenSearch.run());
+		registerLoginButton(addSearchBtn, topLoginButtons);
+		btnRow.add(addSearchBtn);
 
-		JPanel refreshRow = new JPanel();
-		refreshRow.setLayout(new BoxLayout(refreshRow, BoxLayout.X_AXIS));
-		refreshRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+		btnRow.add(Box.createHorizontalStrut(4));
 
-		JLabel step2 = new JLabel("2. Click Refresh Sounds:");
-		step2.setFont(buttonFont);
-		refreshRow.add(step2);
-		refreshRow.add(Box.createHorizontalStrut(4));
+		JButton addEquippedBtn = makeImageButton(ADD_PLUS_ICON, ADD_PLUS_HOVER_ICON,
+			"Add your currently equipped weapon to configure");
+		addEquippedBtn.addActionListener(e -> onAddEquipped.run());
+		registerLoginButton(addEquippedBtn, topLoginButtons);
+		btnRow.add(addEquippedBtn);
 
-		JButton refreshSoundsBtn = new JButton(REFRESH_ICON);
-		refreshSoundsBtn.setRolloverIcon(REFRESH_HOVER_ICON);
-		refreshSoundsBtn.setToolTipText("Rescan .runelite/customweaponsfx/ for new .wav files");
-		refreshSoundsBtn.setMargin(new Insets(2, 6, 2, 6));
+		btnRow.add(Box.createHorizontalStrut(4));
+
+		JButton openFolderBtn = makeImageButton(FOLDER_ICON, FOLDER_HOVER_ICON,
+			"<html>Open .runelite/customweaponsfx/<br>" +
+					"Put custom SFX here!</html");
+		openFolderBtn.addActionListener(e -> LinkBrowser.open(SoundLibrary.SOUNDS_DIR.toString()));
+		btnRow.add(openFolderBtn);
+
+		btnRow.add(Box.createHorizontalStrut(4));
+
+		JButton refreshSoundsBtn = makeImageButton(REFRESH_ICON, REFRESH_HOVER_ICON,
+			"Rescan .runelite/customweaponsfx/ for new .wav files");
 		refreshSoundsBtn.addActionListener(e ->
 		{
 			spinRefreshButton(refreshSoundsBtn);
 			onRefreshSounds.run();
 		});
-		refreshRow.add(refreshSoundsBtn);
-		refreshRow.add(Box.createHorizontalGlue());
-		top.add(refreshRow);
-
-		JLabel customSoundDirections2 = new JLabel("<html>3. Click an Add method below and configure it</html>");
-		customSoundDirections2.setFont(buttonFont);
-		customSoundDirections2.setAlignmentX(Component.LEFT_ALIGNMENT);
-		top.add(customSoundDirections2);
-		top.add(Box.createVerticalStrut(8));
-
-		JPanel btnRow = new JPanel();
-		btnRow.setLayout(new BoxLayout(btnRow, BoxLayout.X_AXIS));
-		btnRow.setAlignmentX(Component.LEFT_ALIGNMENT);
-
-		JButton addSearchBtn = new JButton("Add (Search)");
-		addSearchBtn.setToolTipText("Search for a weapon to configure");
-		addSearchBtn.addActionListener(e -> onOpenSearch.run());
-		btnRow.add(addSearchBtn);
+		btnRow.add(refreshSoundsBtn);
 
 		btnRow.add(Box.createHorizontalStrut(4));
 
-		JButton addEquippedBtn = new JButton("Add (Equipped)");
-		addEquippedBtn.setToolTipText("Add your currently equipped weapon");
-		addEquippedBtn.addActionListener(e -> onAddEquipped.run());
-		btnRow.add(addEquippedBtn);
+		JButton configBtn = makeImageButton(CONFIG_ICON, CONFIG_HOVER_ICON, "Open plugin config");
+		configBtn.addActionListener(e -> onOpenConfig.run());
+		btnRow.add(configBtn);
+
+		btnRow.add(Box.createHorizontalStrut(4));
+
+		JButton kofiBtn = makeImageButton(KOFI_ICON, KOFI_HOVER_ICON, "Buy me a coffee :)");
+		kofiBtn.addActionListener(e -> LinkBrowser.browse(KOFI_URL));
+		btnRow.add(kofiBtn);
+
+		btnRow.add(Box.createHorizontalStrut(4));
+
+		JButton resetBtn = makeImageButton(TRASH_ICON, TRASH_HOVER_ICON, "Reset All Data");
+		resetBtn.addActionListener(e ->
+		{
+			if (confirmYesNo("Reset all weapons and sound groups back to defaults?", "Reset All Data"))
+				onReset.run();
+		});
+		btnRow.add(resetBtn);
+
+		btnRow.add(Box.createHorizontalGlue());
+		btnRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, btnRow.getPreferredSize().height));
 
 		top.add(btnRow);
-		top.add(Box.createVerticalStrut(4));
+		top.add(Box.createVerticalStrut(8));
 
 		top.add(Box.createVerticalStrut(6));
 		top.add(buildTogglesSection());
@@ -453,6 +503,21 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		});
 	}
 
+	/** Registers a button whose action needs a logged-in client; it starts in the current login state. */
+	private void registerLoginButton(JButton button, List<JButton> bucket)
+	{
+		button.setEnabled(loggedIn);
+		bucket.add(button);
+	}
+
+	/** Enables or disables every login-gated button (top panel + weapon rows). Call on the EDT. */
+	public void setLoginButtonsEnabled(boolean loggedIn)
+	{
+		this.loggedIn = loggedIn;
+		for (JButton b : topLoginButtons) b.setEnabled(loggedIn);
+		for (JButton b : weaponLoginButtons) b.setEnabled(loggedIn);
+	}
+
 	public void rebuild(List<WeaponEntry> weapons, List<String> availableSounds,
 		List<String> bundledSounds, List<TriggerGroup> receivedGroups, List<TriggerGroup> globalWeaponGroups)
 	{
@@ -460,6 +525,8 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		SwingUtilities.invokeLater(() ->
 		{
 			weaponListPanel.removeAll();
+			// Weapon rows (and their login-gated buttons) are recreated below; drop the stale references.
+			weaponLoginButtons.clear();
 
 			weaponListPanel.add(buildDefaultRowGroups(
 				"Received Attacks", "<html>Sounds that play when <b>you take a hit</b>, regardless of which<br>"
@@ -515,7 +582,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		return buildCollapsibleGroupsPanel(
 			expandedDefaults, prefix,
 			ColorScheme.DARKER_GRAY_COLOR, ColorScheme.BRAND_ORANGE,
-			null, nameLabel, eastControls, 0,
+			null, nameLabel, eastControls, false, 0,
 			groups, availableSounds,
 			() -> store.saveDefaultGroups(prefix, groups), visibleTriggers);
 	}
@@ -555,6 +622,26 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			store.saveWeaponEnabled(entry.getItemId(), entry.isEnabled());
 		});
 
+		JButton editSearchBtn = makeImageButton(ADD_SEARCH_ICON, ADD_SEARCH_HOVER_ICON,
+			"Change this weapon by searching — keeps its sound groups");
+		editSearchBtn.addActionListener(e -> onEditWeaponSearch.accept(entry.getItemId()));
+		registerLoginButton(editSearchBtn, weaponLoginButtons);
+
+		JButton editEquippedBtn = makeImageButton(ADD_PLUS_ICON, ADD_PLUS_HOVER_ICON,
+			"Change this weapon to your currently equipped weapon — keeps its sound groups");
+		editEquippedBtn.addActionListener(e -> onEditWeaponEquipped.accept(entry.getItemId()));
+		registerLoginButton(editEquippedBtn, weaponLoginButtons);
+
+		JButton copyBtn = makeImageButton(CLONE_SEARCH_ICON, CLONE_SEARCH_HOVER_ICON,
+			"Clone this weapons settings to another weapon via search");
+		copyBtn.addActionListener(e -> onCopyWeapon.accept(entry.getItemId()));
+		registerLoginButton(copyBtn, weaponLoginButtons);
+
+		JButton copyEquippedBtn = makeImageButton(CLONE_EQUIPPED_ICON, CLONE_EQUIPPED_HOVER_ICON,
+			"Clone this weapons settings to your currently equipped weapon");
+		copyEquippedBtn.addActionListener(e -> onCopyWeaponEquipped.accept(entry.getItemId()));
+		registerLoginButton(copyEquippedBtn, weaponLoginButtons);
+
 		JButton removeBtn = makeRemoveButton("Remove weapon");
 		removeBtn.addActionListener(e ->
 		{
@@ -562,14 +649,19 @@ public class CustomWeaponSfxPanel extends PluginPanel
 				onRemoveWeapon.accept(entry.getItemId());
 		});
 
+		// The toggle leads (it's pulled hard-left in the action row); the icons trail on the right.
 		List<Component> eastControls = new ArrayList<>();
 		eastControls.add(enabledBox);
+		eastControls.add(editSearchBtn);
+		eastControls.add(editEquippedBtn);
+		eastControls.add(copyBtn);
+		eastControls.add(copyEquippedBtn);
 		eastControls.add(removeBtn);
 
 		return buildCollapsibleGroupsPanel(
 			expandedWeapons, entry.getItemId(),
 			bg, ColorScheme.MEDIUM_GRAY_COLOR,
-			iconLabel, nameLabel, eastControls, 36,
+			iconLabel, nameLabel, eastControls, true, 36,
 			entry.getGroups(), availableSounds,
 			() -> store.saveWeaponGroups(entry),
 			EnumSet.complementOf(EnumSet.of(Triggers.REGULAR_HIT, Triggers.PLAYER_DEATH)));
@@ -587,6 +679,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		Component westLeading,
 		JLabel nameLabel,
 		List<Component> eastControls,
+		boolean actionsAboveHeader,
 		int headerMaxHeight,
 		List<TriggerGroup> groups, List<String> availableSounds,
 		Runnable onSave, Set<Triggers> visibleTriggers)
@@ -599,14 +692,44 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			new EmptyBorder(6, 6, 6, 6)
 		));
 
+		JButton collapseBtn = makeCollapseButton(collapsed);
+
+		// When requested, action controls sit in their own row above the icon/name header so they read
+		// as a distinct toolbar. The expand/minimize button leads, then the toggle, then stretch space
+		// pushes the remaining icons to the right edge.
+		if (actionsAboveHeader && eastControls != null && !eastControls.isEmpty())
+		{
+			JPanel actionRow = new JPanel();
+			actionRow.setLayout(new BoxLayout(actionRow, BoxLayout.X_AXIS));
+			actionRow.setBackground(bg);
+			actionRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+			actionRow.add(collapseBtn);
+			actionRow.add(Box.createHorizontalStrut(4));
+			actionRow.add(eastControls.get(0));
+			actionRow.add(Box.createHorizontalGlue());
+			for (int i = 1; i < eastControls.size(); i++)
+			{
+				if (i > 1) actionRow.add(Box.createHorizontalStrut(4));
+				actionRow.add(eastControls.get(i));
+			}
+			actionRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, actionRow.getPreferredSize().height));
+			panel.add(actionRow);
+		}
+
 		JPanel headerRow = new JPanel(new BorderLayout(6, 0));
 		headerRow.setBackground(bg);
 		headerRow.setAlignmentX(Component.LEFT_ALIGNMENT);
 		if (headerMaxHeight > 0)
 			headerRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, headerMaxHeight));
 
-		JButton collapseBtn = makeCollapseButton(collapsed);
-		if (westLeading != null)
+		if (actionsAboveHeader)
+		{
+			// Collapse button lives in the action row above; the header is just the icon + name.
+			if (westLeading != null)
+				headerRow.add(westLeading, BorderLayout.WEST);
+		}
+		else if (westLeading != null)
 		{
 			JPanel westBlock = new JPanel(new BorderLayout(4, 0));
 			westBlock.setBackground(bg);
@@ -621,7 +744,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 
 		headerRow.add(nameLabel, BorderLayout.CENTER);
 
-		if (eastControls != null && !eastControls.isEmpty())
+		if (!actionsAboveHeader && eastControls != null && !eastControls.isEmpty())
 		{
 			JPanel eastBlock = new JPanel(new FlowLayout(FlowLayout.RIGHT, 4, 0));
 			eastBlock.setBackground(bg);

@@ -25,6 +25,13 @@ Play custom sound effects when you attack or get hit in Old School RuneScape.
 4. To play a sound when you take damage, expand the **Received Attacks** section at the top.
 5. To play a sound for any weapon without its own configuration, expand the **Global (All Weapons)** section.
 
+### Managing weapons
+
+Each weapon row has buttons to re-point or copy its configuration without rebuilding it from scratch:
+
+- **Change (Search)** / **Change (Equipped)** — move this weapon entry to a different weapon (by name search or your currently equipped weapon), **keeping** its sound groups. Use this when, for example, you upgrade to a new version of a weapon and want to carry its sounds over.
+- **Clone (Search)** / **Clone (Equipped)** — create a *new* weapon entry that copies this weapon's settings (sound groups, triggers, volumes, weights) onto another weapon, leaving the original in place.
+
 ## Sound Groups
 
 Each weapon and section contains one or more **sound groups**. A sound group fires when its selected triggers match the outcome of an attack (see [Triggers](#triggers) for exact matching rules).
@@ -99,7 +106,7 @@ Each weapon row, the **Received Attacks** section, and the **Global (All Weapons
 
 ## Using Your Own Sounds
 
-1. Place `.wav` files in `.runelite/customweaponsfx/`.
+1. Place `.wav` files in `.runelite/customweaponsfx/` — click the **Open SFX folder** button (folder icon) in the panel toolbar to open it directly.
 2. Click **Refresh Sounds** in the panel.
 3. Your files will appear in the sound dropdowns alongside the built-in sounds.
 
@@ -127,7 +134,7 @@ An NPC is excluded if it matches *either* list (or the built-in ids), so you can
 
 ## Plugin Configuration
 
-A few settings live in RuneLite's standard configuration panel — click the **gear/cog icon** next to **Custom Weapon SFX** in the plugin list (not the side panel itself).
+A few settings live in RuneLite's standard configuration panel — click the **gear/cog icon** next to **Custom Weapon SFX** in the plugin list, or the **Open config** button (cog icon) in the side panel's toolbar, which opens the same configuration directly.
 
 **Side Panel Priority** — controls where the Custom Weapon SFX icon sits in the RuneLite sidebar relative to other plugins' icons. **Lower numbers sit higher** (closer to the top); higher numbers sit lower. The default is `1`. Changing it reorders the icon.
 
@@ -142,6 +149,18 @@ Click **Reset All Data** to clear all weapons and sound groups and restore defau
 **Splashing** - Your players splashing, like thrall zeros, cannot be distinguished from other players splashes, so I opted to not include them in the plugin (everyones splashes around you would cause a SFX).
 
 ## Version History
+
+### 2.10
+
+- Add an **Open SFX folder** button (folder icon) to the panel toolbar that opens `.runelite/customweaponsfx/` directly, so you no longer have to find the folder yourself to drop in custom `.wav` files.
+- Add an **Open config** button (cog icon) to the panel toolbar that opens the plugin's RuneLite configuration directly, instead of having to find the gear icon in the plugin list.
+- Weapon-specific **Change** buttons — re-point an existing weapon entry at a different weapon while keeping all of its sound groups:
+  - **Change (Search)** — pick the new weapon by name search.
+  - **Change (Equipped)** — switch the entry to your currently equipped weapon.
+- Weapon-specific **Clone** buttons — copy an existing weapon's settings (sound groups, triggers, volumes, weights) onto another weapon:
+  - **Clone (Search)** — clone the settings onto a weapon picked by name search.
+  - **Clone (Equipped)** — clone the settings onto your currently equipped weapon.
+- UI and icon updates.
 
 ### 2.9
 

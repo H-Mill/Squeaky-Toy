@@ -18,7 +18,7 @@ public class SoundSelectionTest
 		List<SoundEntry> sounds = Arrays.asList(
 			new SoundEntry("a", 75, 0),
 			new SoundEntry("b", 75, 0));
-		assertNull(CustomWeaponSfxPlugin.pickWeighted(sounds));
+		assertNull(SoundPlayer.pickWeighted(sounds));
 	}
 
 	@Test
@@ -28,7 +28,7 @@ public class SoundSelectionTest
 			new SoundEntry("never", 75, 0),
 			new SoundEntry("always", 75, 1.0));
 		for (int i = 0; i < 1000; i++)
-			assertEquals("always", CustomWeaponSfxPlugin.pickWeighted(sounds).getSoundFile());
+			assertEquals("always", SoundPlayer.pickWeighted(sounds).getSoundFile());
 	}
 
 	@Test
@@ -43,7 +43,7 @@ public class SoundSelectionTest
 		int n = 100_000;
 		for (int i = 0; i < n; i++)
 		{
-			String f = CustomWeaponSfxPlugin.pickWeighted(sounds).getSoundFile();
+			String f = SoundPlayer.pickWeighted(sounds).getSoundFile();
 			counts.merge(f, 1, Integer::sum);
 		}
 
@@ -61,7 +61,7 @@ public class SoundSelectionTest
 
 		Map<String, Integer> seen = new HashMap<>();
 		for (int i = 0; i < 1000; i++)
-			seen.merge(CustomWeaponSfxPlugin.pickWeighted(sounds).getSoundFile(), 1, Integer::sum);
+			seen.merge(SoundPlayer.pickWeighted(sounds).getSoundFile(), 1, Integer::sum);
 
 		assertTrue(seen.containsKey("a"));
 		assertTrue(seen.containsKey("b"));

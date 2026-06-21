@@ -31,6 +31,7 @@ import net.runelite.api.events.AnimationChanged;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.HitsplatApplied;
+import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.ProjectileMoved;
 import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.gameval.VarPlayerID;
@@ -163,13 +164,27 @@ public class CustomWeaponSfxPlugin extends Plugin
 		updateLoginButtons();
 	}
 
-	/** Enables the search/equipped/copy buttons only while logged in, since they read live game state. */
+	@Subscribe
+	public void onItemContainerChanged(ItemContainerChanged event)
+	{
+		// Re-evaluate the "to equipped weapon" buttons when the equipment changes (weapon equipped/removed).
+		if (event.getContainerId() == InventoryID.EQUIPMENT.getId())
+		{
+			updateLoginButtons();
+		}
+	}
+
+	/**
+	 * Enables the search/equipped/copy buttons only while logged in, since they read live game state. The
+	 * "to equipped weapon" actions additionally require a weapon to be equipped.
+	 */
 	private void updateLoginButtons()
 	{
 		CustomWeaponSfxPanel p = panel;
 		if (p == null) return;
 		boolean loggedIn = client.getGameState() == GameState.LOGGED_IN;
-		SwingUtilities.invokeLater(() -> p.setLoginButtonsEnabled(loggedIn));
+		boolean weaponEquipped = loggedIn && getEquippedWeaponId() >= 0;
+		SwingUtilities.invokeLater(() -> p.setLoginButtonsEnabled(loggedIn, weaponEquipped));
 	}
 
 	@Override
@@ -374,9 +389,19 @@ public class CustomWeaponSfxPlugin extends Plugin
 		if (event.getVarbitId() != VarbitID.ARCEUUS_RESURRECTION_COOLDOWN) return;
 		if (event.getValue() != 1) return;
 
-		int ticks = client.getBoostedSkillLevel(Skill.MAGIC);
-		if (client.getVarbitValue(VarbitID.CA_TIER_STATUS_MASTER) == 2) ticks += ticks;
-		thrallTicksRemaining = ticks + 4;
+		boolean masterTier = client.getVarbitValue(VarbitID.CA_TIER_STATUS_MASTER) == 2;
+		thrallTicksRemaining = thrallDurationTicks(client.getBoostedSkillLevel(Skill.MAGIC), masterTier);
+	}
+
+	/**
+	 * Resurrection thrall lifetime in game ticks: the caster's (boosted) Magic level, doubled when the
+	 * Master combat-achievement tier is complete, plus the 4-tick summon delay.
+	 */
+	static int thrallDurationTicks(int magicLevel, boolean masterCombatAchievements)
+	{
+		int ticks = magicLevel;
+		if (masterCombatAchievements) ticks += ticks;
+		return ticks + 4;
 	}
 
 	private void evaluatePendingAttacks(List<PendingAttack> pendingAttacks)
@@ -398,12 +423,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 
 			if (opt(SfxOption.GLOBAL_ENABLED) && attack.groups != receivedGroups)
 			{
-				Set<Triggers> weaponCoveredTriggers = opt(SfxOption.DONT_OVERRIDE_GLOBAL)
-						? EnumSet.noneOf(Triggers.class)
-						: attack.groups.stream()
-						.filter(g -> !g.getTriggers().isEmpty())
-						.flatMap(g -> g.getTriggers().stream())
-						.collect(Collectors.toCollection(() -> EnumSet.noneOf(Triggers.class)));
+				Set<Triggers> weaponCoveredTriggers = coveredGlobalTriggers(attack.groups, opt(SfxOption.DONT_OVERRIDE_GLOBAL));
 				soundPlayer.fireMatchingGroups(globalWeaponGroups, outcome.wasSpec, outcome.anyHit, outcome.allZero, outcome.allMax,
 						suppressMax, suppressZero, outcome.isKill, weaponCoveredTriggers);
 			}
@@ -416,6 +436,23 @@ public class CustomWeaponSfxPlugin extends Plugin
 		{
 			spec.clearWindow();
 		}
+	}
+
+	/**
+	 * Triggers the weapon's own groups already cover, so the Global (All Weapons) groups can skip them and
+	 * avoid double-firing the same event. Empty when {@code dontOverrideGlobal} is set — the user then wants
+	 * both the weapon and global sounds to play.
+	 */
+	static Set<Triggers> coveredGlobalTriggers(List<TriggerGroup> groups, boolean dontOverrideGlobal)
+	{
+		if (dontOverrideGlobal)
+		{
+			return EnumSet.noneOf(Triggers.class);
+		}
+		return groups.stream()
+			.filter(g -> !g.getTriggers().isEmpty())
+			.flatMap(g -> g.getTriggers().stream())
+			.collect(Collectors.toCollection(() -> EnumSet.noneOf(Triggers.class)));
 	}
 
 	private void resetAllData()
@@ -463,6 +500,12 @@ public class CustomWeaponSfxPlugin extends Plugin
 	}
 
 	private int getEquippedWeaponId()
+	{
+		return equippedWeaponId(client);
+	}
+
+	/** The weapon-slot item id from the equipment container, or -1 when nothing is in the weapon slot. */
+	static int equippedWeaponId(Client client)
 	{
 		ItemContainer equipment = client.getItemContainer(InventoryID.EQUIPMENT);
 		if (equipment == null) return -1;

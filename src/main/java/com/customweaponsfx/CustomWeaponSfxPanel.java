@@ -153,10 +153,17 @@ public class CustomWeaponSfxPanel extends PluginPanel
 
 	/** Whether actions that read live game state (search/equipped/copy) are currently usable. */
 	private boolean loggedIn;
+	/** Whether the player currently has a weapon equipped; gates the "to equipped weapon" actions. */
+	private boolean weaponEquipped;
 	/** Login-gated buttons in the always-present top panel (built once). */
 	private final List<JButton> topLoginButtons = new ArrayList<>();
 	/** Login-gated buttons in the weapon rows; rebuilt with the list, so cleared each {@link #rebuild}. */
 	private final List<JButton> weaponLoginButtons = new ArrayList<>();
+	/**
+	 * Weapon-row buttons that act on the equipped weapon (change/clone to equipped); gated by both login
+	 * and having a weapon equipped. Rebuilt with the list, so cleared each {@link #rebuild}.
+	 */
+	private final List<JButton> equippedWeaponButtons = new ArrayList<>();
 
 	/** Active spin animation for the refresh button, if any; restarted (not stacked) on rapid re-clicks. */
 	private Timer refreshSpinTimer;
@@ -510,12 +517,27 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		bucket.add(button);
 	}
 
-	/** Enables or disables every login-gated button (top panel + weapon rows). Call on the EDT. */
-	public void setLoginButtonsEnabled(boolean loggedIn)
+	/**
+	 * Registers a button that acts on the equipped weapon; it needs both a logged-in client and a weapon
+	 * equipped, and starts in the current state.
+	 */
+	private void registerEquippedWeaponButton(JButton button)
+	{
+		button.setEnabled(loggedIn && weaponEquipped);
+		equippedWeaponButtons.add(button);
+	}
+
+	/**
+	 * Enables or disables every state-gated button (top panel + weapon rows). The "to equipped weapon"
+	 * actions additionally require a weapon to be equipped. Call on the EDT.
+	 */
+	public void setLoginButtonsEnabled(boolean loggedIn, boolean weaponEquipped)
 	{
 		this.loggedIn = loggedIn;
+		this.weaponEquipped = weaponEquipped;
 		for (JButton b : topLoginButtons) b.setEnabled(loggedIn);
 		for (JButton b : weaponLoginButtons) b.setEnabled(loggedIn);
+		for (JButton b : equippedWeaponButtons) b.setEnabled(loggedIn && weaponEquipped);
 	}
 
 	public void rebuild(List<WeaponEntry> weapons, List<String> availableSounds,
@@ -527,6 +549,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			weaponListPanel.removeAll();
 			// Weapon rows (and their login-gated buttons) are recreated below; drop the stale references.
 			weaponLoginButtons.clear();
+			equippedWeaponButtons.clear();
 
 			weaponListPanel.add(buildDefaultRowGroups(
 				"Received Attacks", "<html>Sounds that play when <b>you take a hit</b>, regardless of which<br>"
@@ -630,7 +653,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		JButton editEquippedBtn = makeImageButton(ADD_PLUS_ICON, ADD_PLUS_HOVER_ICON,
 			"Change this weapon to your currently equipped weapon — keeps its sound groups");
 		editEquippedBtn.addActionListener(e -> onEditWeaponEquipped.accept(entry.getItemId()));
-		registerLoginButton(editEquippedBtn, weaponLoginButtons);
+		registerEquippedWeaponButton(editEquippedBtn);
 
 		JButton copyBtn = makeImageButton(CLONE_SEARCH_ICON, CLONE_SEARCH_HOVER_ICON,
 			"Clone this weapons settings to another weapon via search");
@@ -640,7 +663,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		JButton copyEquippedBtn = makeImageButton(CLONE_EQUIPPED_ICON, CLONE_EQUIPPED_HOVER_ICON,
 			"Clone this weapons settings to your currently equipped weapon");
 		copyEquippedBtn.addActionListener(e -> onCopyWeaponEquipped.accept(entry.getItemId()));
-		registerLoginButton(copyEquippedBtn, weaponLoginButtons);
+		registerEquippedWeaponButton(copyEquippedBtn);
 
 		JButton removeBtn = makeRemoveButton("Remove weapon");
 		removeBtn.addActionListener(e ->

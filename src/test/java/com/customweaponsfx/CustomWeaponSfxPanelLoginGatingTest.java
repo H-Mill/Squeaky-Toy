@@ -50,7 +50,7 @@ public class CustomWeaponSfxPanelLoginGatingTest
 				(name, id) -> {}, group -> {},
 				() -> {}, () -> {}, () -> {},
 				(option, on) -> {},
-				raw -> {}, raw -> {}));
+				raw -> {}, raw -> {}, raw -> {}));
 
 		// One weapon row so the per-row "to equipped weapon" buttons actually exist.
 		rebuildWithOneWeapon();

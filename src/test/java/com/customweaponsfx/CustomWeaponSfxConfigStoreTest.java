@@ -307,4 +307,33 @@ public class CustomWeaponSfxConfigStoreTest
 			CustomWeaponSfxPanel.GLOBAL_WEAPON_GROUPS_PREFIX, new ArrayList<>());
 		assertEquals("", store.getExcludedNpcNamesRaw());
 	}
+
+	@Test
+	public void mutedWeaponSoundIdsRoundTripAndDefaultEmpty()
+	{
+		assertEquals("", store.getMutedWeaponSoundIdsRaw());
+
+		store.setMutedWeaponSoundIds("2554, 2555");
+		assertEquals("2554, 2555", store.getMutedWeaponSoundIdsRaw());
+	}
+
+	@Test
+	public void parseSoundIdsSkipsBlankAndInvalidTokens()
+	{
+		java.util.Set<Integer> ids = CustomWeaponSfxConfigStore.parseSoundIds(" 2554 ,, abc, 2555,");
+		assertEquals(new java.util.HashSet<>(java.util.Arrays.asList(2554, 2555)), ids);
+
+		assertTrue(CustomWeaponSfxConfigStore.parseSoundIds(null).isEmpty());
+		assertTrue(CustomWeaponSfxConfigStore.parseSoundIds("").isEmpty());
+	}
+
+	@Test
+	public void resetAllUnsetsMutedWeaponSoundIds()
+	{
+		store.setMutedWeaponSoundIds("2554");
+		store.resetAll(java.util.Collections.emptyList(),
+			CustomWeaponSfxPanel.RECEIVED_GROUPS_PREFIX, new ArrayList<>(),
+			CustomWeaponSfxPanel.GLOBAL_WEAPON_GROUPS_PREFIX, new ArrayList<>());
+		assertEquals("", store.getMutedWeaponSoundIdsRaw());
+	}
 }

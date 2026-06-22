@@ -40,6 +40,7 @@ class CustomWeaponSfxConfigStore
 	private static final String WEAPON_IDS_KEY = "specWeaponIds";
 	private static final String EXCLUDED_NPC_IDS_KEY = "excludedNpcIds";
 	private static final String EXCLUDED_NPC_NAMES_KEY = "excludedNpcNames";
+	private static final String MUTED_WEAPON_SOUND_IDS_KEY = "mutedWeaponSoundIds";
 
 	private static final int DEFAULT_CHANCE = 100;
 	private static final int DEFAULT_VOLUME = 75;
@@ -185,6 +186,26 @@ class CustomWeaponSfxConfigStore
 		return names;
 	}
 
+	// ----- muted default weapon sounds ------------------------------------------------------
+
+	/** The raw, user-entered comma-separated game sound-effect id string (empty string if unset). */
+	String getMutedWeaponSoundIdsRaw()
+	{
+		String v = backend.get(MUTED_WEAPON_SOUND_IDS_KEY);
+		return v != null ? v : "";
+	}
+
+	void setMutedWeaponSoundIds(String raw)
+	{
+		backend.set(MUTED_WEAPON_SOUND_IDS_KEY, raw == null ? "" : raw);
+	}
+
+	/** Parses a comma-separated sound-effect id string into a set, silently skipping blank/invalid tokens. */
+	static Set<Integer> parseSoundIds(String raw)
+	{
+		return parseNpcIds(raw);
+	}
+
 	// ----- default sections (received / global) ---------------------------------------------
 
 	List<TriggerGroup> loadDefaultGroups(String prefix)
@@ -232,6 +253,7 @@ class CustomWeaponSfxConfigStore
 		backend.unset(WEAPON_IDS_KEY);
 		backend.unset(EXCLUDED_NPC_IDS_KEY);
 		backend.unset(EXCLUDED_NPC_NAMES_KEY);
+		backend.unset(MUTED_WEAPON_SOUND_IDS_KEY);
 		clearDefaultGroups(receivedPrefix, receivedGroups);
 		clearDefaultGroups(globalPrefix, globalGroups);
 	}

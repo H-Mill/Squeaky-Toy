@@ -185,6 +185,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	private final BiConsumer<SfxOption, Boolean> onOptionToggled;
 	private final Consumer<String> onExcludedNpcIdsChanged;
 	private final Consumer<String> onExcludedNpcNamesChanged;
+	private final Consumer<String> onMutedWeaponSoundIdsChanged;
 
 	private JCheckBox ignoreSmallMaxCheckBox;
 	private JCheckBox ignoreZeroPrayerCheckBox;
@@ -192,6 +193,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	private JCheckBox dontOverrideGlobalCheckBox;
 	private JTextField excludedNpcIdsField;
 	private JTextField excludedNpcNamesField;
+	private JTextField mutedWeaponSoundIdsField;
 
 	private final JPanel weaponListPanel;
 	private final JPanel mainContent;
@@ -211,7 +213,8 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		Runnable onOpenConfig,
 		BiConsumer<SfxOption, Boolean> onOptionToggled,
 		Consumer<String> onExcludedNpcIdsChanged,
-		Consumer<String> onExcludedNpcNamesChanged)
+		Consumer<String> onExcludedNpcNamesChanged,
+		Consumer<String> onMutedWeaponSoundIdsChanged)
 	{
 		this.store = store;
 		this.itemManager = itemManager;
@@ -230,6 +233,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		this.onOptionToggled = onOptionToggled;
 		this.onExcludedNpcIdsChanged = onExcludedNpcIdsChanged;
 		this.onExcludedNpcNamesChanged = onExcludedNpcNamesChanged;
+		this.onMutedWeaponSoundIdsChanged = onMutedWeaponSoundIdsChanged;
 
 		setLayout(new BorderLayout());
 		setBorder(new EmptyBorder(10, 10, 10, 10));
@@ -441,6 +445,14 @@ public class CustomWeaponSfxPanel extends PluginPanel
 				+ "Example: Vorkath, zulrah</html>",
 			store.getExcludedNpcNamesRaw(), onExcludedNpcNamesChanged, f -> excludedNpcNamesField = f));
 
+		content.add(Box.createVerticalStrut(6));
+		content.add(buildExcludedNpcRow(
+			"Muted Weapon Sound IDs:",
+			"<html>Comma-separated game sound-effect ids to silence, so your<br>"
+				+ "custom SFX replaces the default in-game weapon sound.<br>"
+				+ "Example: 3892 (the ACB/ZCB special attack \"REEEE\" sound)</html>",
+			store.getMutedWeaponSoundIdsRaw(), onMutedWeaponSoundIdsChanged, f -> mutedWeaponSoundIdsField = f));
+
 		section.add(content);
 
 		collapseBtn.addActionListener(e ->
@@ -507,6 +519,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			if (dontOverrideGlobalCheckBox != null) dontOverrideGlobalCheckBox.setSelected(false);
 			if (excludedNpcIdsField != null) excludedNpcIdsField.setText("");
 			if (excludedNpcNamesField != null) excludedNpcNamesField.setText("");
+			if (mutedWeaponSoundIdsField != null) mutedWeaponSoundIdsField.setText("");
 		});
 	}
 

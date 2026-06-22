@@ -33,6 +33,8 @@ import net.runelite.api.events.GameTick;
 import net.runelite.api.events.HitsplatApplied;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.ProjectileMoved;
+import net.runelite.api.events.AreaSoundEffectPlayed;
+import net.runelite.api.events.SoundEffectPlayed;
 import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.gameval.VarPlayerID;
 import net.runelite.api.gameval.VarbitID;
@@ -95,6 +97,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 	private final TickWeaponSnapshot launchWeapon = new TickWeaponSnapshot();
 
 	private NpcExclusionFilter npcFilter;
+	private WeaponSoundMuteFilter soundMute;
 	private SfxOptions options;
 
 	private int thrallTicksRemaining = 0;
@@ -196,6 +199,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 
 		store = new CustomWeaponSfxConfigStore(configManager);
 		npcFilter = new NpcExclusionFilter(store);
+		soundMute = new WeaponSoundMuteFilter(store);
 		options = new SfxOptions(store);
 		weapons = new WeaponManager(store, this::rebuildPanel, this::showWeaponConflict);
 
@@ -208,8 +212,9 @@ public class CustomWeaponSfxPlugin extends Plugin
 		options.load();
 
 		npcFilter.load();
+		soundMute.load();
 
-		panel = new CustomWeaponSfxPanel(store, itemManager, this::openWeaponSearch, this::addEquippedWeapon, weapons::remove, this::editWeaponViaSearch, this::editWeaponToEquipped, this::copyWeapon, this::copyWeaponToEquipped, soundPlayer::playSoundFile, soundPlayer::fireGroup, this::resetAllData, this::refreshSounds, this::openConfiguration, this::onOptionChanged, npcFilter::setIds, npcFilter::setNames);
+		panel = new CustomWeaponSfxPanel(store, itemManager, this::openWeaponSearch, this::addEquippedWeapon, weapons::remove, this::editWeaponViaSearch, this::editWeaponToEquipped, this::copyWeapon, this::copyWeaponToEquipped, soundPlayer::playSoundFile, soundPlayer::fireGroup, this::resetAllData, this::refreshSounds, this::openConfiguration, this::onOptionChanged, npcFilter::setIds, npcFilter::setNames, soundMute::setIds);
 
 		rebuildNavButton();
 
@@ -250,6 +255,8 @@ public class CustomWeaponSfxPlugin extends Plugin
 		options = null;
 		if (npcFilter != null) npcFilter.clear();
 		npcFilter = null;
+		if (soundMute != null) soundMute.clear();
+		soundMute = null;
 
 		hits.clear();
 
@@ -321,6 +328,29 @@ public class CustomWeaponSfxPlugin extends Plugin
 		// clock at hit time so attribution is distance-independent (no per-tick travel estimate).
 		projectiles.onProjectileSpawned(weaponId, p.getTargetActor(), p.getTargetPoint(),
 			p.getEndCycle(), client.getTickCount(), spec.wasSpec());
+	}
+
+	/**
+	 * Mutes the default in-game sound effects the user listed (e.g. a weapon's stock swing/hit sound),
+	 * so their custom SFX replaces it instead of layering on top. Covers both the local "self" sound
+	 * effect and the area sound effect other nearby players hear.
+	 */
+	@Subscribe
+	public void onSoundEffectPlayed(SoundEffectPlayed event)
+	{
+		if (soundMute != null && soundMute.isMuted(event.getSoundId()))
+		{
+			event.consume();
+		}
+	}
+
+	@Subscribe
+	public void onAreaSoundEffectPlayed(AreaSoundEffectPlayed event)
+	{
+		if (soundMute != null && soundMute.isMuted(event.getSoundId()))
+		{
+			event.consume();
+		}
 	}
 
 	@Subscribe
@@ -464,6 +494,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 		receivedGroups.clear();
 		globalWeaponGroups.clear();
 		npcFilter.clear();
+		soundMute.clear();
 
 		options.reset();
 		if (panel != null) panel.resetToggles();

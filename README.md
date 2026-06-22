@@ -16,6 +16,7 @@ Play custom sound effects when you attack or get hit in Old School RuneScape.
 - Enable or disable individual weapons and sections without losing their configuration
 - Use built-in sounds or drop in your own `.wav` files
 - Per-sound volume control and in-panel preview
+- Mute the game's default weapon sounds by sound ID, so your custom SFX replaces them instead of layering on top
 
 ## Setup
 
@@ -112,7 +113,7 @@ Each weapon row, the **Received Attacks** section, and the **Global (All Weapons
 
 ## Options
 
-The **Options** section at the top of the panel (collapsed by default) contains four global toggles and two NPC exclusion lists:
+The **Options** section at the top of the panel (collapsed by default) contains four global toggles, two NPC exclusion lists, and a default-sound mute list:
 
 **Ignore max hits ≤ 3** — when enabled, max hit SFX will not play if the hit deals 3 or fewer damage. This prevents thrall max hits from triggering your *Regular/Special attack max* sounds. Enabled by default.
 
@@ -132,6 +133,20 @@ Two text fields let you stop your hits on specific NPCs from playing any SFX. Bo
 
 An NPC is excluded if it matches *either* list (or the built-in ids), so you can mix and match. Invalid or blank entries are ignored.
 
+### Muting default weapon sounds
+
+By default your custom SFX play *on top of* the game's own weapon sounds. The **Muted Weapon Sound IDs** field lets you silence the game's stock sounds so only your custom SFX is heard.
+
+Enter a **comma-separated list** of the game sound-effect ids you want muted. Any matching sound is silenced — both the sound you hear and the one nearby players hear for that effect. Changes save automatically when you press Enter or click away from the field. Invalid or blank entries are ignored.
+
+This mutes sounds purely by id, independent of which weapon is configured — so you can use it to quiet any annoying default sound, not just the weapons you've set up custom SFX for.
+
+**Common sound ids:**
+
+| Sound ID | What it is |
+|---|---|
+| `3892` | The Armadyl crossbow / Zaryte crossbow (ACB/ZCB) special attack "REEEE" sound |
+
 ## Plugin Configuration
 
 A few settings live in RuneLite's standard configuration panel — click the **gear/cog icon** next to **Custom Weapon SFX** in the plugin list, or the **Open config** button (cog icon) in the side panel's toolbar, which opens the same configuration directly.
@@ -149,6 +164,10 @@ Click **Reset All Data** to clear all weapons and sound groups and restore defau
 **Splashing** - Your players splashing, like thrall zeros, cannot be distinguished from other players splashes, so I opted to not include them in the plugin (everyones splashes around you would cause a SFX).
 
 ## Version History
+
+### 2.11
+
+- Add a **Muted Weapon Sound IDs** field to the Options section — a comma-separated list of game sound-effect ids to silence, so your custom SFX replaces the game's default weapon sound instead of playing over it. Mutes both your own sound and the area sound nearby players hear, by id. For example, id `3892` mutes the ACB/ZCB special attack "REEEE" sound.
 
 ### 2.10
 

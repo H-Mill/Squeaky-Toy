@@ -115,6 +115,8 @@ By default, when a weapon has its own sound group for a trigger, it overrides th
 2. Click **Refresh Sounds** in the panel.
 3. Your files will appear in the sound dropdowns alongside the built-in sounds.
 
+Need sounds to get started? I've compiled a collection of `.wav` SFX you can download and drop in: [H-Mill/Runelite-Plugins (sfx branch)](https://github.com/H-Mill/Runelite-Plugins/tree/sfx).
+
 ## Options
 
 The **Options** section at the top of the panel (collapsed by default) contains three global toggles, two NPC exclusion lists, and a default-sound mute list:

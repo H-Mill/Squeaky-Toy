@@ -365,7 +365,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 			if (!opt(SfxOption.RECEIVED_ENABLED)) return;
 			if (amount == 0 && opt(SfxOption.IGNORE_RECEIVED_ZERO_PRAYER) && isProtectionPrayerActive())
 				return;
-			hits.add(new DeferredHit(RECEIVED_KEY, receivedGroups, false, amount, false, tick, null));
+			hits.add(new DeferredHit(RECEIVED_KEY, receivedGroups, false, false, amount, false, tick, null));
 			return;
 		}
 
@@ -395,9 +395,9 @@ public class CustomWeaponSfxPlugin extends Plugin
 
 		WeaponEntry entry = weapons.find(weaponId);
 		if (entry != null && entry.isEnabled())
-			hits.add(new DeferredHit(weaponId, entry.getGroups(), wasSpec, amount, isMax, tick, actor));
+			hits.add(new DeferredHit(weaponId, entry.getGroups(), entry.isDontOverrideGlobal(), wasSpec, amount, isMax, tick, actor));
 		else
-			hits.add(new DeferredHit(weaponId, java.util.Collections.emptyList(), wasSpec, amount, isMax, tick, actor));
+			hits.add(new DeferredHit(weaponId, java.util.Collections.emptyList(), false, wasSpec, amount, isMax, tick, actor));
 	}
 
 	@Subscribe
@@ -453,7 +453,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 
 			if (opt(SfxOption.GLOBAL_ENABLED) && attack.groups != receivedGroups)
 			{
-				Set<Triggers> weaponCoveredTriggers = coveredGlobalTriggers(attack.groups, opt(SfxOption.DONT_OVERRIDE_GLOBAL));
+				Set<Triggers> weaponCoveredTriggers = coveredGlobalTriggers(attack.groups, attack.dontOverrideGlobal);
 				soundPlayer.fireMatchingGroups(globalWeaponGroups, outcome.wasSpec, outcome.anyHit, outcome.allZero, outcome.allMax,
 						suppressMax, suppressZero, outcome.isKill, weaponCoveredTriggers);
 			}

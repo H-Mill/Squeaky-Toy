@@ -190,7 +190,6 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	private JCheckBox ignoreSmallMaxCheckBox;
 	private JCheckBox ignoreZeroPrayerCheckBox;
 	private JCheckBox ignoreZeroThrallCheckBox;
-	private JCheckBox dontOverrideGlobalCheckBox;
 	private JTextField excludedNpcIdsField;
 	private JTextField excludedNpcNamesField;
 	private JTextField mutedWeaponSoundIdsField;
@@ -425,11 +424,6 @@ public class CustomWeaponSfxPanel extends PluginPanel
 				+ "while a thrall is active.</html>");
 		content.add(ignoreZeroThrallCheckBox);
 
-		dontOverrideGlobalCheckBox = buildOptionCheckBox(SfxOption.DONT_OVERRIDE_GLOBAL, "Don't override Global",
-			"<html>When enabled, weapon-specific triggers no longer override<br>"
-				+ "the matching Global (All Weapons) triggers — both sounds play.</html>");
-		content.add(dontOverrideGlobalCheckBox);
-
 		content.add(Box.createVerticalStrut(6));
 		content.add(buildExcludedNpcRow(
 			"Excluded NPC IDs:",
@@ -516,7 +510,6 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			if (ignoreSmallMaxCheckBox != null) ignoreSmallMaxCheckBox.setSelected(true);
 			if (ignoreZeroPrayerCheckBox != null) ignoreZeroPrayerCheckBox.setSelected(true);
 			if (ignoreZeroThrallCheckBox != null) ignoreZeroThrallCheckBox.setSelected(true);
-			if (dontOverrideGlobalCheckBox != null) dontOverrideGlobalCheckBox.setSelected(false);
 			if (excludedNpcIdsField != null) excludedNpcIdsField.setText("");
 			if (excludedNpcNamesField != null) excludedNpcNamesField.setText("");
 			if (mutedWeaponSoundIdsField != null) mutedWeaponSoundIdsField.setText("");
@@ -577,8 +570,8 @@ public class CustomWeaponSfxPanel extends PluginPanel
 					+ "in addition to any weapon-specific sounds configured below.<br><br>"
 					+ "<b>Note:</b> if the equipped weapon has its own sound group for a<br>"
 					+ "trigger, that weapon <b>overrides</b> the global sound for that trigger —<br>"
-					+ "they do not stack (unless <b>Don't override Global</b> in the Options<br>"
-					+ "section is enabled.</html>",
+					+ "they do not stack (unless that weapon's <b>Don't override Global</b><br>"
+					+ "toggle is enabled).</html>",
 				GLOBAL_WEAPON_GROUPS_PREFIX, globalWeaponGroups, availableSounds,
 				EnumSet.complementOf(EnumSet.of(Triggers.REGULAR_HIT, Triggers.PLAYER_DEATH)), SfxOption.GLOBAL_ENABLED));
 			weaponListPanel.add(Box.createVerticalStrut(4));
@@ -619,6 +612,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			expandedDefaults, prefix,
 			ColorScheme.DARKER_GRAY_COLOR, ColorScheme.BRAND_ORANGE,
 			null, nameLabel, eastControls, false, 0,
+			null,
 			groups, availableSounds,
 			() -> store.saveDefaultGroups(prefix, groups), visibleTriggers);
 	}
@@ -694,10 +688,24 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		eastControls.add(copyEquippedBtn);
 		eastControls.add(removeBtn);
 
+		JCheckBox dontOverrideGlobalBox = new JCheckBox("Don't override Global", entry.isDontOverrideGlobal());
+		dontOverrideGlobalBox.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		dontOverrideGlobalBox.setBackground(bg);
+		dontOverrideGlobalBox.setAlignmentX(Component.LEFT_ALIGNMENT);
+		dontOverrideGlobalBox.setBorder(BorderFactory.createEmptyBorder(0, 0, 6, 0));
+		dontOverrideGlobalBox.setToolTipText("<html>When enabled, this weapon's triggers no longer override<br>"
+			+ "the matching Global (All Weapons) triggers — both sounds play.</html>");
+		dontOverrideGlobalBox.addActionListener(e ->
+		{
+			entry.setDontOverrideGlobal(dontOverrideGlobalBox.isSelected());
+			store.saveWeaponDontOverrideGlobal(entry.getItemId(), entry.isDontOverrideGlobal());
+		});
+
 		return buildCollapsibleGroupsPanel(
 			expandedWeapons, entry.getItemId(),
 			bg, ColorScheme.MEDIUM_GRAY_COLOR,
 			iconLabel, nameLabel, eastControls, true, 36,
+			dontOverrideGlobalBox,
 			entry.getGroups(), availableSounds,
 			() -> store.saveWeaponGroups(entry),
 			EnumSet.complementOf(EnumSet.of(Triggers.REGULAR_HIT, Triggers.PLAYER_DEATH)));
@@ -717,6 +725,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		List<Component> eastControls,
 		boolean actionsAboveHeader,
 		int headerMaxHeight,
+		Component bodyLeading,
 		List<TriggerGroup> groups, List<String> availableSounds,
 		Runnable onSave, Set<Triggers> visibleTriggers)
 	{
@@ -794,6 +803,14 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		strut.setVisible(!collapsed);
 		panel.add(strut);
 
+		// Optional body content (e.g. a weapon's "Don't override Global" toggle) sits above the sound
+		// groups and collapses with them.
+		if (bodyLeading != null)
+		{
+			bodyLeading.setVisible(!collapsed);
+			panel.add(bodyLeading);
+		}
+
 		JPanel groupsHolder = boxColumn(bg);
 		groupsHolder.setVisible(!collapsed);
 		rebuildGroupsSection(groupsHolder, groups, availableSounds, onSave, visibleTriggers);
@@ -808,6 +825,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 				expandedSet.add(key);
 			applyCollapseState(collapseBtn, nowCollapsed);
 			strut.setVisible(!nowCollapsed);
+			if (bodyLeading != null) bodyLeading.setVisible(!nowCollapsed);
 			groupsHolder.setVisible(!nowCollapsed);
 			panel.revalidate();
 			panel.repaint();

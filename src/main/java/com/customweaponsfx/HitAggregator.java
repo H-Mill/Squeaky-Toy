@@ -44,7 +44,7 @@ class HitAggregator
 			PendingAttack attack = attacks.get(h.key);
 			if (attack == null)
 			{
-				attack = new PendingAttack(h.groups);
+				attack = new PendingAttack(h.groups, h.dontOverrideGlobal);
 				attack.wasSpec = h.wasSpec;
 				attacks.put(h.key, attack);
 			}

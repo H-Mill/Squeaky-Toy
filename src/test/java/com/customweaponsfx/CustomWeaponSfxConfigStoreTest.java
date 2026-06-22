@@ -79,6 +79,7 @@ public class CustomWeaponSfxConfigStoreTest
 
 		WeaponEntry entry = new WeaponEntry(1234, "Test Weapon", groups);
 		entry.setEnabled(false);
+		entry.setDontOverrideGlobal(true);
 
 		store.saveWeapon(entry);
 		store.saveWeaponIds(java.util.Collections.singletonList(entry));
@@ -90,9 +91,50 @@ public class CustomWeaponSfxConfigStoreTest
 		assertEquals(1234, back.getItemId());
 		assertEquals("Test Weapon", back.getWeaponName());
 		assertFalse(back.isEnabled());
+		assertTrue(back.isDontOverrideGlobal());
 		assertEquals(2, back.getGroups().size());
 		assertGroupEquals(groups.get(0), back.getGroups().get(0));
 		assertGroupEquals(groups.get(1), back.getGroups().get(1));
+	}
+
+	@Test
+	public void weaponWithoutPerWeaponFlagInheritsLegacyGlobalDontOverride()
+	{
+		// A weapon saved before "Don't override Global" became per-weapon: it has groups + id index but
+		// no _dontOverrideGlobal key, while the old global toggle was on.
+		backend.set("dontOverrideGlobal", true);
+		backend.set("specWeapon_555_groupCount", 0);
+		backend.set("specWeaponIds", "555");
+
+		WeaponEntry back = store.loadWeapons().get(0);
+		assertTrue("legacy global value should carry over to the weapon", back.isDontOverrideGlobal());
+	}
+
+	@Test
+	public void legacyDontOverrideMigratesForwardAndIsRemoved()
+	{
+		// Same legacy setup, but assert the one-time migration writes the value onto the weapon's own key
+		// and clears the legacy global key, so future loads no longer depend on the fallback.
+		backend.set("dontOverrideGlobal", true);
+		backend.set("specWeapon_555_groupCount", 0);
+		backend.set("specWeaponIds", "555");
+
+		store.loadWeapons();
+
+		assertEquals("per-weapon key should be persisted", "true", backend.map.get("specWeapon_555_dontOverrideGlobal"));
+		assertNull("legacy global key should be absorbed", backend.map.get("dontOverrideGlobal"));
+
+		// A second load with the legacy key gone still yields the migrated value.
+		assertTrue(store.loadWeapons().get(0).isDontOverrideGlobal());
+	}
+
+	@Test
+	public void weaponWithoutAnyDontOverrideConfigDefaultsToFalse()
+	{
+		backend.set("specWeapon_555_groupCount", 0);
+		backend.set("specWeaponIds", "555");
+
+		assertFalse(store.loadWeapons().get(0).isDontOverrideGlobal());
 	}
 
 	@Test

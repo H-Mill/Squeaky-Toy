@@ -12,6 +12,8 @@ public class WeaponEntry
 	private String weaponName;
 	private final List<TriggerGroup> groups;
 	@Setter private boolean enabled;
+	/** When true, this weapon's triggers do not override the matching Global (All Weapons) triggers — both play. */
+	@Setter private boolean dontOverrideGlobal;
 
 	public WeaponEntry(int itemId, String weaponName, List<TriggerGroup> groups)
 	{
@@ -19,5 +21,6 @@ public class WeaponEntry
 		this.weaponName = weaponName;
 		this.groups = groups != null ? groups : new ArrayList<>();
 		this.enabled = true;
+		this.dontOverrideGlobal = false;
 	}
 }

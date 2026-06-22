@@ -88,6 +88,7 @@ class WeaponManager
 
 		WeaponEntry updated = new WeaponEntry(newItemId, newName, old.getGroups());
 		updated.setEnabled(old.isEnabled());
+		updated.setDontOverrideGlobal(old.isDontOverrideGlobal());
 		entries.set(idx, updated);
 
 		store.saveWeapon(updated);
@@ -98,8 +99,8 @@ class WeaponManager
 
 	/**
 	 * Creates a new weapon entry for {@code newItemId} with a deep copy of {@code sourceItemId}'s
-	 * sound groups and enabled state. No-ops if the source is gone; warns and aborts if the target id
-	 * already has its own configuration.
+	 * sound groups, enabled state, and "don't override Global" flag. No-ops if the source is gone;
+	 * warns and aborts if the target id already has its own configuration.
 	 */
 	void copy(int sourceItemId, int newItemId, String newName)
 	{
@@ -114,6 +115,7 @@ class WeaponManager
 
 		WeaponEntry copy = new WeaponEntry(newItemId, newName, copyGroups(source.getGroups()));
 		copy.setEnabled(source.isEnabled());
+		copy.setDontOverrideGlobal(source.isDontOverrideGlobal());
 		entries.add(copy);
 
 		store.saveWeapon(copy);

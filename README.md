@@ -95,7 +95,7 @@ When your attack lands, the plugin checks whether the weapon you used has a grou
 
 This lets you set a single default "on hit" sound that plays for every weapon, then override it selectively for specific weapons.
 
-If you would rather have both the weapon-specific and global sounds play for overlapping triggers, enable **Don't override Global** in the Options section (see below).
+If you would rather have both the weapon-specific and global sounds play for overlapping triggers, enable that weapon's **Don't override Global** toggle (see below).
 
 **Example:** configure a generic hit sound in Global with the *All attacks* trigger. Add your scythe with only a *Regular attack max* group. Scythe max hits play the scythe sound; every other hit type on the scythe, and all hits with any other weapon, play the global sound.
 
@@ -105,6 +105,10 @@ The global section only fires for outgoing hits — it is not affected by incomi
 
 Each weapon row, the **Received Attacks** section, and the **Global (All Weapons)** section each have a checkbox in their header. Unchecking it disables that weapon or section — its sound groups will not fire — without removing any configuration. Check it again to re-enable.
 
+## Don't override Global (per weapon)
+
+By default, when a weapon has its own sound group for a trigger, it overrides the matching **Global (All Weapons)** sound for that trigger so the two do not stack. Expand a weapon and enable its **Don't override Global** toggle to make the weapon-specific and Global sounds for the same trigger *both* play. This is configured per weapon and is disabled by default.
+
 ## Using Your Own Sounds
 
 1. Place `.wav` files in `.runelite/customweaponsfx/` — click the **Open SFX folder** button (folder icon) in the panel toolbar to open it directly.
@@ -113,15 +117,13 @@ Each weapon row, the **Received Attacks** section, and the **Global (All Weapons
 
 ## Options
 
-The **Options** section at the top of the panel (collapsed by default) contains four global toggles, two NPC exclusion lists, and a default-sound mute list:
+The **Options** section at the top of the panel (collapsed by default) contains three global toggles, two NPC exclusion lists, and a default-sound mute list:
 
 **Ignore max hits ≤ 3** — when enabled, max hit SFX will not play if the hit deals 3 or fewer damage. This prevents thrall max hits from triggering your *Regular/Special attack max* sounds. Enabled by default.
 
 **Ignore zeroes with prayer** — when enabled, the Received Attacks *Regular attack zero* trigger will not fire while Protect from Melee, Protect from Ranged, or Protect from Magic is active. Useful if you don't want a "blocked" sound every time a prayer absorbs a hit. Enabled by default.
 
 **Ignore zeroes with thrall** — when enabled, zero-damage triggers will not fire while a thrall is active. Prevents thrall misses from triggering zero-damage sounds. Enabled by default.
-
-**Don't override Global** — by default, when the equipped weapon has its own sound group for a trigger, it overrides the matching Global (All Weapons) sound so they don't stack. When this is enabled, the weapon-specific and Global sounds for the same trigger will *both* play. Disabled by default.
 
 ### Excluding NPCs
 
@@ -167,6 +169,7 @@ Click **Reset All Data** to clear all weapons and sound groups and restore defau
 
 ### 2.11
 
+- Move **Don't override Global** from a single global toggle to a per-weapon setting — expand a weapon to enable it just for that weapon, so its triggers and the matching Global (All Weapons) triggers both play.
 - Add a **Muted Weapon Sound IDs** field to the Options section — a comma-separated list of game sound-effect ids to silence, so your custom SFX replaces the game's default weapon sound instead of playing over it. Mutes both your own sound and the area sound nearby players hear, by id. For example, id `3892` mutes the ACB/ZCB special attack "REEEE" sound.
 
 ### 2.10

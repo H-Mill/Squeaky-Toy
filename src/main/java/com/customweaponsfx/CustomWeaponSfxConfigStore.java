@@ -41,6 +41,11 @@ class CustomWeaponSfxConfigStore
 	private static final String EXCLUDED_NPC_IDS_KEY = "excludedNpcIds";
 	private static final String EXCLUDED_NPC_NAMES_KEY = "excludedNpcNames";
 	private static final String MUTED_WEAPON_SOUND_IDS_KEY = "mutedWeaponSoundIds";
+	/**
+	 * Legacy global "Don't override Global" key, superseded in 2.11 by a per-weapon flag. Read only, for the
+	 * one-time migration in {@link #loadWeapons()}. TODO(2.12): delete once that migration is removed.
+	 */
+	private static final String LEGACY_DONT_OVERRIDE_GLOBAL_KEY = "dontOverrideGlobal";
 
 	private static final int DEFAULT_CHANCE = 100;
 	private static final int DEFAULT_VOLUME = 75;
@@ -87,17 +92,37 @@ class CustomWeaponSfxConfigStore
 			WeaponEntry entry = new WeaponEntry(itemId, name != null ? name : "Weapon #" + itemId, groups);
 			String enabledStr = backend.get(section + "_enabled");
 			if (enabledStr != null) entry.setEnabled(Boolean.parseBoolean(enabledStr));
+			// MIGRATION (added 2.11) — "Don't override Global" was once a single global toggle; weapons
+			// saved before it became per-weapon have no key of their own, so they inherit the old global
+			// value and we write it straight back as their own key. Once every weapon owns a key the legacy
+			// global key is unset below, so this only ever runs once per upgraded install.
+			String dogStr = backend.get(section + "_dontOverrideGlobal");
+			if (dogStr != null)
+			{
+				entry.setDontOverrideGlobal(Boolean.parseBoolean(dogStr));
+			}
+			else
+			{
+				entry.setDontOverrideGlobal(getBool(LEGACY_DONT_OVERRIDE_GLOBAL_KEY, false));
+				backend.set(section + "_dontOverrideGlobal", entry.isDontOverrideGlobal());
+			}
 			result.add(entry);
 		}
+		// Every weapon now carries its own key, so the legacy global toggle is fully absorbed.
+		// TODO(2.12): once 2.11 has shipped long enough that every active install has loaded once,
+		// this migration can be deleted — remove the legacy fallback above, this unset, the
+		// LEGACY_DONT_OVERRIDE_GLOBAL_KEY constant, and its unset in resetAll().
+		backend.unset(LEGACY_DONT_OVERRIDE_GLOBAL_KEY);
 		return result;
 	}
 
-	/** Writes name + enabled + all groups for one weapon. Does not touch the id index. */
+	/** Writes name + enabled + dontOverrideGlobal + all groups for one weapon. Does not touch the id index. */
 	void saveWeapon(WeaponEntry entry)
 	{
 		String section = weaponSection(entry.getItemId());
 		backend.set(section + "_name", entry.getWeaponName());
 		backend.set(section + "_enabled", entry.isEnabled());
+		backend.set(section + "_dontOverrideGlobal", entry.isDontOverrideGlobal());
 		saveGroups(section, entry.getGroups());
 	}
 
@@ -112,6 +137,11 @@ class CustomWeaponSfxConfigStore
 		backend.set(weaponSection(itemId) + "_enabled", enabled);
 	}
 
+	void saveWeaponDontOverrideGlobal(int itemId, boolean dontOverrideGlobal)
+	{
+		backend.set(weaponSection(itemId) + "_dontOverrideGlobal", dontOverrideGlobal);
+	}
+
 	/** Unsets every key for one weapon. Caller is responsible for updating the id index. */
 	void removeWeapon(WeaponEntry entry)
 	{
@@ -119,6 +149,7 @@ class CustomWeaponSfxConfigStore
 		clearGroups(section, entry.getGroups());
 		backend.unset(section + "_name");
 		backend.unset(section + "_enabled");
+		backend.unset(section + "_dontOverrideGlobal");
 	}
 
 	void saveWeaponIds(List<WeaponEntry> weapons)
@@ -254,6 +285,7 @@ class CustomWeaponSfxConfigStore
 		backend.unset(EXCLUDED_NPC_IDS_KEY);
 		backend.unset(EXCLUDED_NPC_NAMES_KEY);
 		backend.unset(MUTED_WEAPON_SOUND_IDS_KEY);
+		backend.unset(LEGACY_DONT_OVERRIDE_GLOBAL_KEY); // TODO(2.12): delete with the load-time migration
 		clearDefaultGroups(receivedPrefix, receivedGroups);
 		clearDefaultGroups(globalPrefix, globalGroups);
 	}

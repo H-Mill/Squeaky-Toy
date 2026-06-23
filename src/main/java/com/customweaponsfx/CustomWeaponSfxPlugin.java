@@ -214,7 +214,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 		npcFilter.load();
 		soundMute.load();
 
-		panel = new CustomWeaponSfxPanel(store, itemManager, this::openWeaponSearch, this::addEquippedWeapon, weapons::remove, this::editWeaponViaSearch, this::editWeaponToEquipped, this::copyWeapon, this::copyWeaponToEquipped, soundPlayer::playSoundFile, soundPlayer::fireGroup, this::resetAllData, this::refreshSounds, this::openConfiguration, this::onOptionChanged, npcFilter::setIds, npcFilter::setNames, soundMute::setIds);
+		panel = new CustomWeaponSfxPanel(store, itemManager, this::openWeaponSearch, this::addEquippedWeapon, weapons::remove, this::editWeaponViaSearch, this::editWeaponToEquipped, this::copyWeapon, this::copyWeaponToEquipped, weapons::move, soundPlayer::playSoundFile, soundPlayer::fireGroup, this::resetAllData, this::refreshSounds, this::openConfiguration, this::onOptionChanged, npcFilter::setIds, npcFilter::setNames, soundMute::setIds);
 
 		rebuildNavButton();
 

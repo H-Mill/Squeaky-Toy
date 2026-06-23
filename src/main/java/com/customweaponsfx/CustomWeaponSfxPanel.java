@@ -12,6 +12,8 @@ import java.awt.Insets;
 import java.awt.RenderingHints;
 import java.awt.event.FocusAdapter;
 import java.awt.event.FocusEvent;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -25,6 +27,7 @@ import javax.swing.BorderFactory;
 import javax.swing.Box;
 import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
+import javax.swing.JComponent;
 import javax.swing.JOptionPane;
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
@@ -43,6 +46,7 @@ import net.runelite.client.ui.ColorScheme;
 import net.runelite.client.util.ImageUtil;
 import net.runelite.client.util.LinkBrowser;
 import net.runelite.client.ui.PluginPanel;
+import net.runelite.client.ui.components.DragAndDropReorderPane;
 import net.runelite.client.util.AsyncBufferedImage;
 
 public class CustomWeaponSfxPanel extends PluginPanel
@@ -85,7 +89,12 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	private static final ImageIcon CONFIG_HOVER_ICON;
 	private static final ImageIcon KOFI_ICON;
 	private static final ImageIcon KOFI_HOVER_ICON;
+	private static final ImageIcon DRAG_ICON;
+	private static final ImageIcon DRAG_HOVER_ICON;
 	private static final String KOFI_URL = "https://ko-fi.com/hmill8";
+
+	/** Client property on each weapon row holding its {@code Integer} item id, so a drop can resolve which weapon moved. */
+	private static final String ROW_ITEM_ID_KEY = "customWeaponSfxItemId";
 
 	static
 	{
@@ -145,6 +154,10 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		final BufferedImage kofiImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "icon_kofi.png");
 		KOFI_ICON = new ImageIcon(kofiImg);
 		KOFI_HOVER_ICON = new ImageIcon(ImageUtil.luminanceOffset(kofiImg, -100));
+
+		final BufferedImage dragImg = ImageUtil.loadImageResource(CustomWeaponSfxPlugin.class, "icon_drag.png");
+		DRAG_ICON = new ImageIcon(dragImg);
+		DRAG_HOVER_ICON = new ImageIcon(ImageUtil.luminanceOffset(dragImg, -100));
 	}
 
 	private List<String> bundledSounds = new ArrayList<>();
@@ -177,6 +190,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	private final Consumer<Integer> onEditWeaponEquipped;
 	private final Consumer<Integer> onCopyWeapon;
 	private final Consumer<Integer> onCopyWeaponEquipped;
+	private final BiConsumer<Integer, Integer> onReorderWeapon;
 	private final BiConsumer<String, Integer> onTestSound;
 	private final Consumer<TriggerGroup> onTestGroup;
 	private final Runnable onReset;
@@ -205,6 +219,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		Consumer<Integer> onEditWeaponEquipped,
 		Consumer<Integer> onCopyWeapon,
 		Consumer<Integer> onCopyWeaponEquipped,
+		BiConsumer<Integer, Integer> onReorderWeapon,
 		BiConsumer<String, Integer> onTestSound,
 		Consumer<TriggerGroup> onTestGroup,
 		Runnable onReset,
@@ -224,6 +239,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		this.onEditWeaponEquipped = onEditWeaponEquipped;
 		this.onCopyWeapon = onCopyWeapon;
 		this.onCopyWeaponEquipped = onCopyWeaponEquipped;
+		this.onReorderWeapon = onReorderWeapon;
 		this.onTestSound = onTestSound;
 		this.onTestGroup = onTestGroup;
 		this.onReset = onReset;
@@ -577,11 +593,26 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			weaponListPanel.add(Box.createVerticalStrut(4));
 
 
+			// Weapon rows live in a reorder pane so the user can drag them (by each row's handle) to
+			// re-sort. The Received/Global sections above stay fixed. A fresh pane each rebuild is fine —
+			// rebuilds are infrequent — and its drop listener persists the new order via onReorderWeapon.
+			DragAndDropReorderPane reorderPane = new DragAndDropReorderPane();
+			reorderPane.setAlignmentX(Component.LEFT_ALIGNMENT);
+			reorderPane.addDragListener(comp ->
+			{
+				Object id = ((JComponent) comp).getClientProperty(ROW_ITEM_ID_KEY);
+				if (id instanceof Integer)
+					onReorderWeapon.accept((Integer) id, reorderPane.getPosition(comp));
+			});
+
 			for (int i = 0; i < weapons.size(); i++)
 			{
-				weaponListPanel.add(buildRow(weapons.get(i), availableSounds, i));
-				weaponListPanel.add(Box.createVerticalStrut(8));
+				WeaponEntry weapon = weapons.get(i);
+				JPanel row = buildRow(weapon, availableSounds, i, reorderPane);
+				row.putClientProperty(ROW_ITEM_ID_KEY, weapon.getItemId());
+				reorderPane.add(row);
 			}
+			weaponListPanel.add(reorderPane);
 
 			weaponListPanel.revalidate();
 			weaponListPanel.repaint();
@@ -611,7 +642,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		return buildCollapsibleGroupsPanel(
 			expandedDefaults, prefix,
 			ColorScheme.DARKER_GRAY_COLOR, ColorScheme.BRAND_ORANGE,
-			null, nameLabel, eastControls, false, 0,
+			null, null, nameLabel, eastControls, false, 0,
 			null,
 			groups, availableSounds,
 			() -> store.saveDefaultGroups(prefix, groups), visibleTriggers);
@@ -623,9 +654,12 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	/** Background for each sound's box — matches the weapon boxes to set sounds apart from the group. */
 	private static final Color SOUND_BOX_COLOR = ColorScheme.DARKER_GRAY_COLOR;
 
-	private JPanel buildRow(WeaponEntry entry, List<String> availableSounds, int index)
+	private JPanel buildRow(WeaponEntry entry, List<String> availableSounds, int index,
+		DragAndDropReorderPane reorderPane)
 	{
 		Color bg = (index % 2 == 0) ? ROW_COLOR_A : ROW_COLOR_B;
+
+		JLabel dragHandle = makeDragHandle(reorderPane);
 
 		JLabel iconLabel = new JLabel();
 		iconLabel.setPreferredSize(new Dimension(32, 32));
@@ -701,14 +735,66 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			store.saveWeaponDontOverrideGlobal(entry.getItemId(), entry.isDontOverrideGlobal());
 		});
 
-		return buildCollapsibleGroupsPanel(
+		JPanel row = buildCollapsibleGroupsPanel(
 			expandedWeapons, entry.getItemId(),
 			bg, ColorScheme.MEDIUM_GRAY_COLOR,
-			iconLabel, nameLabel, eastControls, true, 36,
+			dragHandle, iconLabel, nameLabel, eastControls, true, 36,
 			dontOverrideGlobalBox,
 			entry.getGroups(), availableSounds,
 			() -> store.saveWeaponGroups(entry),
 			EnumSet.complementOf(EnumSet.of(Triggers.REGULAR_HIT, Triggers.PLAYER_DEATH)));
+
+		// Only the drag handle starts a reorder: an otherwise-empty listener on the row consumes presses on
+		// its dead areas so they don't bubble to the reorder pane and begin a whole-row drag.
+		row.addMouseListener(new MouseAdapter() {});
+		// The reorder pane is a plain BoxLayout with no inter-row gap, so add the row spacing here. A matte
+		// (not empty) border paints the gap in the panel background — an empty border would leave the row's
+		// own opaque background showing below its line border.
+		row.setBorder(BorderFactory.createCompoundBorder(
+			BorderFactory.createMatteBorder(0, 0, 8, 0, ColorScheme.DARK_GRAY_COLOR), row.getBorder()));
+		return row;
+	}
+
+	/**
+	 * A grip-icon label that drags its weapon row. {@link DragAndDropReorderPane} begins a drag from a press
+	 * anywhere on a child, so to confine dragging to this handle we forward the handle's own mouse events to
+	 * the pane (and absorb stray presses on the row body — see {@link #buildRow}).
+	 */
+	private JLabel makeDragHandle(DragAndDropReorderPane reorderPane)
+	{
+		JLabel handle = new JLabel(DRAG_ICON);
+		handle.setToolTipText("Drag to reorder this weapon");
+		handle.setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
+		MouseAdapter forwarder = new MouseAdapter()
+		{
+			@Override
+			public void mousePressed(MouseEvent e)
+			{
+				handle.setIcon(DRAG_HOVER_ICON);
+				forward(e);
+			}
+
+			@Override
+			public void mouseDragged(MouseEvent e)
+			{
+				forward(e);
+			}
+
+			@Override
+			public void mouseReleased(MouseEvent e)
+			{
+				handle.setIcon(DRAG_ICON);
+				forward(e);
+			}
+
+			private void forward(MouseEvent e)
+			{
+				reorderPane.dispatchEvent(SwingUtilities.convertMouseEvent(handle, e, reorderPane));
+			}
+		};
+		handle.addMouseListener(forwarder);
+		handle.addMouseMotionListener(forwarder);
+		return handle;
 	}
 
 	/**
@@ -720,6 +806,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	private <T> JPanel buildCollapsibleGroupsPanel(
 		Set<T> expandedSet, T key,
 		Color bg, Color borderColor,
+		Component actionLeading,
 		Component westLeading,
 		JLabel nameLabel,
 		List<Component> eastControls,
@@ -740,7 +827,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		JButton collapseBtn = makeCollapseButton(collapsed);
 
 		// When requested, action controls sit in their own row above the icon/name header so they read
-		// as a distinct toolbar. The expand/minimize button leads, then the toggle, then stretch space
+		// as a distinct toolbar. The toggle leads, then the expand/minimize button, then stretch space
 		// pushes the remaining icons to the right edge.
 		if (actionsAboveHeader && eastControls != null && !eastControls.isEmpty())
 		{
@@ -749,9 +836,14 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			actionRow.setBackground(bg);
 			actionRow.setAlignmentX(Component.LEFT_ALIGNMENT);
 
-			actionRow.add(collapseBtn);
-			actionRow.add(Box.createHorizontalStrut(4));
+			if (actionLeading != null)
+			{
+				actionRow.add(actionLeading);
+				actionRow.add(Box.createHorizontalStrut(4));
+			}
 			actionRow.add(eastControls.get(0));
+			actionRow.add(Box.createHorizontalStrut(4));
+			actionRow.add(collapseBtn);
 			actionRow.add(Box.createHorizontalGlue());
 			for (int i = 1; i < eastControls.size(); i++)
 			{

@@ -47,6 +47,7 @@ public class CustomWeaponSfxPanelLoginGatingTest
 				store, itemManager,
 				() -> {}, () -> {},
 				id -> {}, id -> {}, id -> {}, id -> {}, id -> {},
+				(fromId, toIndex) -> {},
 				(name, id) -> {}, group -> {},
 				() -> {}, () -> {}, () -> {},
 				(option, on) -> {},

@@ -14,6 +14,7 @@ Play custom sound effects when you attack or get hit in Old School RuneScape.
 - Multiple sounds per group — one is picked at random each time the group fires, with an adjustable **weight** to make some sounds more likely than others
 - Per-group activation chance (0–100%) for randomized playback
 - Enable or disable individual weapons and sections without losing their configuration
+- Reorder your configured weapons by dragging each row's handle
 - Use built-in sounds or drop in your own `.wav` files
 - Per-sound volume control and in-panel preview
 - Mute the game's default weapon sounds by sound ID, so your custom SFX replaces them instead of layering on top
@@ -32,6 +33,8 @@ Each weapon row has buttons to re-point or copy its configuration without rebuil
 
 - **Change (Search)** / **Change (Equipped)** — move this weapon entry to a different weapon (by name search or your currently equipped weapon), **keeping** its sound groups. Use this when, for example, you upgrade to a new version of a weapon and want to carry its sounds over.
 - **Clone (Search)** / **Clone (Equipped)** — create a *new* weapon entry that copies this weapon's settings (sound groups, triggers, volumes, weights) onto another weapon, leaving the original in place.
+
+To **reorder** your weapons, drag a row by its handle (the grip icon at the left of the row's toolbar) and drop it in the new position. The order is saved automatically.
 
 ## Sound Groups
 
@@ -171,6 +174,7 @@ Click **Reset All Data** to clear all weapons and sound groups and restore defau
 
 ### 2.11
 
+- **Reorder weapons by dragging** — each weapon row has a drag handle (grip icon at the left of its toolbar); drag a row and drop it to change the order. The new order is saved automatically.
 - Move **Don't override Global** from a single global toggle to a per-weapon setting — expand a weapon to enable it just for that weapon, so its triggers and the matching Global (All Weapons) triggers both play.
 - Add a **Muted Weapon Sound IDs** field to the Options section — a comma-separated list of game sound-effect ids to silence, so your custom SFX replaces the game's default weapon sound instead of playing over it. Mutes both your own sound and the area sound nearby players hear, by id. For example, id `3892` mutes the ACB/ZCB special attack "REEEE" sound.
 

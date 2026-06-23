@@ -124,6 +124,30 @@ class WeaponManager
 		onChanged.run();
 	}
 
+	/**
+	 * Moves the weapon with {@code itemId} to {@code newIndex} in the ordering and persists the new
+	 * order (the id index is order-significant, so this is all that's needed). No-ops if the id is
+	 * unknown or it is already at that index.
+	 */
+	void move(int itemId, int newIndex)
+	{
+		WeaponEntry entry = find(itemId);
+		if (entry == null) return;
+
+		int current = entries.indexOf(entry);
+		if (current < 0) return;
+
+		int target = Math.max(0, Math.min(newIndex, entries.size() - 1));
+		if (current == target) return;
+
+		entries.remove(current);
+		entries.add(target, entry);
+
+		store.saveWeaponIds(entries);
+
+		onChanged.run();
+	}
+
 	void remove(int itemId)
 	{
 		WeaponEntry entry = find(itemId);

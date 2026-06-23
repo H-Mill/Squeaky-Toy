@@ -11,7 +11,6 @@ enum SfxOption
 	IGNORE_SMALL_MAX("ignoreSmallMaxHits", true),
 	IGNORE_RECEIVED_ZERO_PRAYER("ignoreReceivedZeroWithPrayer", true),
 	IGNORE_ZERO_THRALL("ignoreZeroWhileThrallActive", true),
-	DONT_OVERRIDE_GLOBAL("dontOverrideGlobal", false),
 	GLOBAL_ENABLED(CustomWeaponSfxPanel.GLOBAL_WEAPON_GROUPS_PREFIX + "_enabled", true),
 	RECEIVED_ENABLED(CustomWeaponSfxPanel.RECEIVED_GROUPS_PREFIX + "_enabled", true);
 

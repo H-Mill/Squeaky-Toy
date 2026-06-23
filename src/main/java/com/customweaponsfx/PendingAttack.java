@@ -11,6 +11,7 @@ import net.runelite.api.Actor;
 class PendingAttack
 {
 	final List<TriggerGroup> groups;
+	final boolean            dontOverrideGlobal;
 	final List<Integer>      amounts   = new ArrayList<>();
 	final List<Boolean>      isMaxList = new ArrayList<>();
 	final List<Actor>        actors    = new ArrayList<>();
@@ -18,7 +19,13 @@ class PendingAttack
 
 	PendingAttack(List<TriggerGroup> groups)
 	{
+		this(groups, false);
+	}
+
+	PendingAttack(List<TriggerGroup> groups, boolean dontOverrideGlobal)
+	{
 		this.groups = groups;
+		this.dontOverrideGlobal = dontOverrideGlobal;
 	}
 
 	/**

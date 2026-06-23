@@ -12,7 +12,7 @@ public class HitAggregatorTest
 {
 	private static DeferredHit hit(int key, List<TriggerGroup> groups, boolean wasSpec, int amount, boolean isMax, int tick)
 	{
-		return new DeferredHit(key, groups, wasSpec, amount, isMax, tick, null);
+		return new DeferredHit(key, groups, false, wasSpec, amount, isMax, tick, null);
 	}
 
 	private static PendingAttack only(List<PendingAttack> attacks)

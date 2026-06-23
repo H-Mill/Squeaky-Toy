@@ -16,6 +16,7 @@ Play custom sound effects when you attack or get hit in Old School RuneScape.
 - Enable or disable individual weapons and sections without losing their configuration
 - Use built-in sounds or drop in your own `.wav` files
 - Per-sound volume control and in-panel preview
+- Mute the game's default weapon sounds by sound ID, so your custom SFX replaces them instead of layering on top
 
 ## Setup
 
@@ -94,7 +95,7 @@ When your attack lands, the plugin checks whether the weapon you used has a grou
 
 This lets you set a single default "on hit" sound that plays for every weapon, then override it selectively for specific weapons.
 
-If you would rather have both the weapon-specific and global sounds play for overlapping triggers, enable **Don't override Global** in the Options section (see below).
+If you would rather have both the weapon-specific and global sounds play for overlapping triggers, enable that weapon's **Don't override Global** toggle (see below).
 
 **Example:** configure a generic hit sound in Global with the *All attacks* trigger. Add your scythe with only a *Regular attack max* group. Scythe max hits play the scythe sound; every other hit type on the scythe, and all hits with any other weapon, play the global sound.
 
@@ -104,23 +105,27 @@ The global section only fires for outgoing hits — it is not affected by incomi
 
 Each weapon row, the **Received Attacks** section, and the **Global (All Weapons)** section each have a checkbox in their header. Unchecking it disables that weapon or section — its sound groups will not fire — without removing any configuration. Check it again to re-enable.
 
+## Don't override Global (per weapon)
+
+By default, when a weapon has its own sound group for a trigger, it overrides the matching **Global (All Weapons)** sound for that trigger so the two do not stack. Expand a weapon and enable its **Don't override Global** toggle to make the weapon-specific and Global sounds for the same trigger *both* play. This is configured per weapon and is disabled by default.
+
 ## Using Your Own Sounds
 
 1. Place `.wav` files in `.runelite/customweaponsfx/` — click the **Open SFX folder** button (folder icon) in the panel toolbar to open it directly.
 2. Click **Refresh Sounds** in the panel.
 3. Your files will appear in the sound dropdowns alongside the built-in sounds.
 
+Need sounds to get started? I've compiled a collection of `.wav` SFX you can download and drop in: [H-Mill/Runelite-Plugins (sfx branch)](https://github.com/H-Mill/Runelite-Plugins/tree/sfx).
+
 ## Options
 
-The **Options** section at the top of the panel (collapsed by default) contains four global toggles and two NPC exclusion lists:
+The **Options** section at the top of the panel (collapsed by default) contains three global toggles, two NPC exclusion lists, and a default-sound mute list:
 
 **Ignore max hits ≤ 3** — when enabled, max hit SFX will not play if the hit deals 3 or fewer damage. This prevents thrall max hits from triggering your *Regular/Special attack max* sounds. Enabled by default.
 
 **Ignore zeroes with prayer** — when enabled, the Received Attacks *Regular attack zero* trigger will not fire while Protect from Melee, Protect from Ranged, or Protect from Magic is active. Useful if you don't want a "blocked" sound every time a prayer absorbs a hit. Enabled by default.
 
 **Ignore zeroes with thrall** — when enabled, zero-damage triggers will not fire while a thrall is active. Prevents thrall misses from triggering zero-damage sounds. Enabled by default.
-
-**Don't override Global** — by default, when the equipped weapon has its own sound group for a trigger, it overrides the matching Global (All Weapons) sound so they don't stack. When this is enabled, the weapon-specific and Global sounds for the same trigger will *both* play. Disabled by default.
 
 ### Excluding NPCs
 
@@ -131,6 +136,20 @@ Two text fields let you stop your hits on specific NPCs from playing any SFX. Bo
 **Excluded NPC Names** — comma-separated NPC names (e.g. `Vorkath, Zulrah`). Matching is **case-insensitive** and must be the NPC's full name (not a partial match). Useful when an encounter reuses the same name across several NPC ids.
 
 An NPC is excluded if it matches *either* list (or the built-in ids), so you can mix and match. Invalid or blank entries are ignored.
+
+### Muting default weapon sounds
+
+By default your custom SFX play *on top of* the game's own weapon sounds. The **Muted Weapon Sound IDs** field lets you silence the game's stock sounds so only your custom SFX is heard.
+
+Enter a **comma-separated list** of the game sound-effect ids you want muted. Any matching sound is silenced — both the sound you hear and the one nearby players hear for that effect. Changes save automatically when you press Enter or click away from the field. Invalid or blank entries are ignored.
+
+This mutes sounds purely by id, independent of which weapon is configured — so you can use it to quiet any annoying default sound, not just the weapons you've set up custom SFX for.
+
+**Common sound ids:**
+
+| Sound ID | What it is |
+|---|---|
+| `3892` | The Armadyl crossbow / Zaryte crossbow (ACB/ZCB) special attack "REEEE" sound |
 
 ## Plugin Configuration
 
@@ -149,6 +168,11 @@ Click **Reset All Data** to clear all weapons and sound groups and restore defau
 **Splashing** - Your players splashing, like thrall zeros, cannot be distinguished from other players splashes, so I opted to not include them in the plugin (everyones splashes around you would cause a SFX).
 
 ## Version History
+
+### 2.11
+
+- Move **Don't override Global** from a single global toggle to a per-weapon setting — expand a weapon to enable it just for that weapon, so its triggers and the matching Global (All Weapons) triggers both play.
+- Add a **Muted Weapon Sound IDs** field to the Options section — a comma-separated list of game sound-effect ids to silence, so your custom SFX replaces the game's default weapon sound instead of playing over it. Mutes both your own sound and the area sound nearby players hear, by id. For example, id `3892` mutes the ACB/ZCB special attack "REEEE" sound.
 
 ### 2.10
 

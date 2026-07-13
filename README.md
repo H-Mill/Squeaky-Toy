@@ -6,6 +6,8 @@ Play custom sound effects when you attack or get hit in Old School RuneScape.
 
 - Assign sounds to specific weapons
 - Play different sounds for misses, regular hits, and max hits — on both regular and special attacks
+- **Amount triggers** — play a sound only when a hit deals more than, less than, or exactly the damage you choose, for regular and special attacks
+- Correct handling for multi-hit weapons like dragon claws, dark bow, and twinflame staff, so their attacks play one sound instead of several
 - Dedicated **Player kill** trigger that fires when your attack kills another player
 - Dedicated **Player death** trigger (Received Attacks) that fires when your character dies
 - Separate sounds for when *you* take damage (Received Attacks)
@@ -56,17 +58,35 @@ Multiple sound groups on the same weapon (or section) with matching triggers all
 
 ## Triggers
 
+Weapons and the **Global (All Weapons)** section offer these triggers:
+
 | Trigger | When it fires |
 |---|---|
 | Regular attack zero | Regular attack that deals 0 damage |
 | Regular attack max | Regular attack that is a max hit |
+| Regular attack amount | Regular attack that deals more than, less than, or exactly a chosen amount |
 | Special attack zero | Special attack that deals 0 damage |
 | Special attack hit | Special attack that deals non-max damage |
 | Special attack max | Special attack that is a max hit |
+| Special attack amount | Special attack that deals more than, less than, or exactly a chosen amount |
 | All attacks | Every attack, including zero-damage hits |
 | Player kill | Your attack kills another player |
 
-The **Received Attacks** section supports a subset: Regular attack zero, Regular attack hit, All attacks, and Player death.
+The **Received Attacks** section has its own set: Regular attack zero, **Regular attack hit** (any non-max damage you take), All attacks, and Player death.
+
+### Amount triggers
+
+**Regular attack amount** and **Special attack amount** play a sound based on how much damage a hit deals. When you enable one, pick an option — more than (`>`), less than (`<`), or exactly (`=`) — and type a number. For example, set `= 73` to play a sound on an exact 73, or `> 50` for any big hit.
+
+Regular attack amount reacts to your regular attacks; Special attack amount reacts to your special attacks. For weapons that hit more than once in a single attack, it's the combined damage of that attack that's checked.
+
+### Multi-hit weapons
+
+Some weapons hit several times in one attack, and those hits can land a little apart. The plugin treats these as a single attack so you get one sound for the whole thing instead of several. This applies to:
+
+- **Dragon claws** and **Burning claws** (special attack)
+- **Dark bow** (every attack)
+- **Twinflame staff** (every cast)
 
 ### Player kill trigger
 
@@ -171,6 +191,11 @@ Click **Reset All Data** to clear all weapons and sound groups and restore defau
 **Splashing** - Your players splashing, like thrall zeros, cannot be distinguished from other players splashes, so I opted to not include them in the plugin (everyones splashes around you would cause a SFX).
 
 ## Version History
+
+### 2.12
+
+- Add **Regular attack amount** and **Special attack amount** triggers — play a sound only when a hit deals more than, less than, or exactly the damage you choose. Enable the trigger, pick `>`, `<`, or `=`, and type a number (e.g. `= 73` for an exact hit, or `> 50` for any big hit).
+- Add correct handling for multi-hit weapons whose hits can land a little apart — **dragon claws**, **burning claws**, **dark bow**, and **twinflame staff**. Their attacks now play one sound for the whole attack instead of several.
 
 ### 2.11
 

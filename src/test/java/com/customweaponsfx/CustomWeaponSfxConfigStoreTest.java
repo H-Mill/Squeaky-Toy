@@ -59,6 +59,12 @@ public class CustomWeaponSfxConfigStoreTest
 	private static void assertGroupEquals(TriggerGroup expected, TriggerGroup actual)
 	{
 		assertEquals(expected.getTriggers(), actual.getTriggers());
+		assertEquals(expected.getAmountConditions().keySet(), actual.getAmountConditions().keySet());
+		for (Triggers t : expected.getAmountConditions().keySet())
+		{
+			assertEquals(expected.getAmountCondition(t).getOp(), actual.getAmountCondition(t).getOp());
+			assertEquals(expected.getAmountCondition(t).getValue(), actual.getAmountCondition(t).getValue());
+		}
 		assertEquals(expected.getChance(), actual.getChance());
 		assertEquals(expected.getSounds().size(), actual.getSounds().size());
 		for (int i = 0; i < expected.getSounds().size(); i++)
@@ -135,6 +141,23 @@ public class CustomWeaponSfxConfigStoreTest
 		backend.set("specWeaponIds", "555");
 
 		assertFalse(store.loadWeapons().get(0).isDontOverrideGlobal());
+	}
+
+	@Test
+	public void amountConditionRoundTripsThroughSaveAndLoad()
+	{
+		String prefix = CustomWeaponSfxPanel.GLOBAL_WEAPON_GROUPS_PREFIX;
+		List<TriggerGroup> groups = new ArrayList<>();
+		TriggerGroup g = group(EnumSet.of(Triggers.REGULAR_AMOUNT), 100, new SoundEntry("boom", 80));
+		g.setAmountCondition(Triggers.REGULAR_AMOUNT, new AmountCondition(AmountCondition.Op.EQUAL, 73));
+		groups.add(g);
+
+		store.saveDefaultGroups(prefix, groups);
+
+		TriggerGroup loaded = store.loadDefaultGroups(prefix).get(0);
+		AmountCondition c = loaded.getAmountCondition(Triggers.REGULAR_AMOUNT);
+		assertEquals(AmountCondition.Op.EQUAL, c.getOp());
+		assertEquals(73, c.getValue());
 	}
 
 	@Test

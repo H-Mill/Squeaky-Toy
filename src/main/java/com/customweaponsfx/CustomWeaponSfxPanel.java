@@ -33,7 +33,9 @@ import javax.swing.JButton;
 import javax.swing.JCheckBox;
 import javax.swing.JComboBox;
 import javax.swing.JLabel;
+import javax.swing.JMenuItem;
 import javax.swing.JPanel;
+import javax.swing.JPopupMenu;
 import javax.swing.JSlider;
 import javax.swing.JSpinner;
 import javax.swing.JTextField;
@@ -200,6 +202,8 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	private final Consumer<String> onExcludedNpcIdsChanged;
 	private final Consumer<String> onExcludedNpcNamesChanged;
 	private final Consumer<String> onMutedWeaponSoundIdsChanged;
+	/** Dev-only: runs a ::cwsdamage-style args string against a weapon from its icon's right-click menu. Null outside developer mode. */
+	private final BiConsumer<Integer, String> onSimulateDebugDamage;
 
 	private JCheckBox ignoreSmallMaxCheckBox;
 	private JCheckBox ignoreZeroPrayerCheckBox;
@@ -228,7 +232,8 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		BiConsumer<SfxOption, Boolean> onOptionToggled,
 		Consumer<String> onExcludedNpcIdsChanged,
 		Consumer<String> onExcludedNpcNamesChanged,
-		Consumer<String> onMutedWeaponSoundIdsChanged)
+		Consumer<String> onMutedWeaponSoundIdsChanged,
+		BiConsumer<Integer, String> onSimulateDebugDamage)
 	{
 		this.store = store;
 		this.itemManager = itemManager;
@@ -249,6 +254,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		this.onExcludedNpcIdsChanged = onExcludedNpcIdsChanged;
 		this.onExcludedNpcNamesChanged = onExcludedNpcNamesChanged;
 		this.onMutedWeaponSoundIdsChanged = onMutedWeaponSoundIdsChanged;
+		this.onSimulateDebugDamage = onSimulateDebugDamage;
 
 		setLayout(new BorderLayout());
 		setBorder(new EmptyBorder(10, 10, 10, 10));
@@ -670,6 +676,23 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			icon.addTo(iconLabel);
 		}
 
+		// Dev-only: right-click the weapon icon to simulate damage against this weapon.
+		if (onSimulateDebugDamage != null)
+		{
+			JPopupMenu menu = new JPopupMenu();
+			JMenuItem simulate = new JMenuItem("Simulate damage...");
+			simulate.addActionListener(e ->
+			{
+				String input = JOptionPane.showInputDialog(this,
+					"Simulated damage for " + entry.getWeaponName() + " (e.g. 15m+15m 7+5 s):",
+					"Simulate Damage", JOptionPane.PLAIN_MESSAGE);
+				if (input != null && !input.trim().isEmpty())
+					onSimulateDebugDamage.accept(entry.getItemId(), input.trim());
+			});
+			menu.add(simulate);
+			iconLabel.setComponentPopupMenu(menu);
+		}
+
 		JLabel nameLabel = new JLabel(entry.getWeaponName());
 		nameLabel.setForeground(entry.isEnabled() ? Color.WHITE : Color.GRAY);
 		setBoldFont(nameLabel, SECTION_TITLE_SIZE);
@@ -1013,7 +1036,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			groupPanel.add(Box.createVerticalStrut(4));
 			groupPanel.add(soundsHolder);
 			groupPanel.add(Box.createVerticalStrut(4));
-			groupPanel.add(buildTriggersPanel(group.getTriggers(), onSave, visibleTriggers));
+			groupPanel.add(buildTriggersPanel(group, onSave, visibleTriggers));
 
 			holder.add(groupPanel);
 			if (i < groups.size() - 1)
@@ -1040,8 +1063,10 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		holder.repaint();
 	}
 
-	private JPanel buildTriggersPanel(Set<Triggers> enabledTriggers, Runnable onSave, Set<Triggers> visibleTriggers)
+	private JPanel buildTriggersPanel(TriggerGroup group, Runnable onSave, Set<Triggers> visibleTriggers)
 	{
+		Set<Triggers> enabledTriggers = group.getTriggers();
+
 		JPanel panel = boxColumn(ColorScheme.DARK_GRAY_COLOR);
 
 		JLabel lbl = new JLabel("Triggers:");
@@ -1054,6 +1079,12 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		for (Triggers trigger : Triggers.values())
 		{
 			if (!visibleTriggers.contains(trigger)) continue;
+			// Amount triggers carry an operator + value, so they get their own row with extra controls.
+			if (trigger.isAmount())
+			{
+				panel.add(buildAmountTriggerRow(trigger, group, onSave));
+				continue;
+			}
 			JCheckBox box = new JCheckBox(trigger.getName());
 			box.setForeground(Color.LIGHT_GRAY);
 			box.setBackground(ColorScheme.DARK_GRAY_COLOR);
@@ -1072,6 +1103,86 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		return panel;
 	}
 
+	/**
+	 * A trigger row for an amount-based trigger: the enabling checkbox plus a comparison operator
+	 * ({@code >}, {@code <}, {@code =}) and a value. The operator/value controls are enabled only while
+	 * the trigger is checked, and every change is written back to the group's {@link AmountCondition}.
+	 */
+	private JPanel buildAmountTriggerRow(Triggers trigger, TriggerGroup group, Runnable onSave)
+	{
+		Set<Triggers> enabledTriggers = group.getTriggers();
+
+		// Column: the checkbox, then the operator + value controls on their own row beneath it. The
+		// side panel is narrow, so keeping the controls underneath avoids them overflowing off the edge.
+		JPanel column = boxColumn(ColorScheme.DARK_GRAY_COLOR);
+		column.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+		JCheckBox box = new JCheckBox(trigger.getName());
+		box.setForeground(Color.LIGHT_GRAY);
+		box.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		box.setToolTipText(triggerTooltip(trigger));
+		box.setSelected(enabledTriggers.contains(trigger));
+		box.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+		JComboBox<AmountCondition.Op> opCombo = new JComboBox<>(AmountCondition.Op.values());
+		opCombo.setToolTipText("How to compare the attack's total damage against the value");
+		opCombo.setMaximumSize(new Dimension(56, opCombo.getPreferredSize().height));
+
+		JSpinner valueSpinner = new JSpinner(new SpinnerNumberModel(0, 0, 32767, 1));
+		valueSpinner.setToolTipText("The total damage value to compare against");
+		valueSpinner.setMaximumSize(new Dimension(72, valueSpinner.getPreferredSize().height));
+
+		// The controls sit on an indented row that is only shown while the trigger is checked.
+		JPanel controls = new JPanel();
+		controls.setLayout(new BoxLayout(controls, BoxLayout.X_AXIS));
+		controls.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		controls.setAlignmentX(Component.LEFT_ALIGNMENT);
+		controls.add(Box.createHorizontalStrut(20));
+		controls.add(opCombo);
+		controls.add(Box.createHorizontalStrut(4));
+		controls.add(valueSpinner);
+		controls.add(Box.createHorizontalGlue());
+		controls.setVisible(box.isSelected());
+		controls.setMaximumSize(new Dimension(Integer.MAX_VALUE, controls.getPreferredSize().height));
+
+		// Seed the controls from any saved condition (before wiring listeners, so seeding doesn't save).
+		AmountCondition existing = group.getAmountCondition(trigger);
+		opCombo.setSelectedItem(existing != null ? existing.getOp() : AmountCondition.Op.EQUAL);
+		valueSpinner.setValue(existing != null ? existing.getValue() : 0);
+
+		Runnable saveCondition = () -> group.setAmountCondition(trigger,
+			new AmountCondition((AmountCondition.Op) opCombo.getSelectedItem(), (Integer) valueSpinner.getValue()));
+
+		box.addActionListener(e ->
+		{
+			if (box.isSelected())
+			{
+				enabledTriggers.add(trigger);
+				saveCondition.run(); // ensure a condition exists when the trigger is first enabled
+			}
+			else
+			{
+				enabledTriggers.remove(trigger);
+			}
+			controls.setVisible(box.isSelected());
+			column.revalidate();
+			column.repaint();
+			onSave.run();
+		});
+		opCombo.addActionListener(e ->
+		{
+			if (box.isSelected()) { saveCondition.run(); onSave.run(); }
+		});
+		valueSpinner.addChangeListener(e ->
+		{
+			if (box.isSelected()) { saveCondition.run(); onSave.run(); }
+		});
+
+		column.add(box);
+		column.add(controls);
+		return column;
+	}
+
 	/** A short description of when each trigger fires, shown as the trigger checkbox's tooltip. */
 	private static String triggerTooltip(Triggers trigger)
 	{
@@ -1083,12 +1194,16 @@ public class CustomWeaponSfxPanel extends PluginPanel
 				return "Fires when a regular (non-special) attack deals 1 or more damage";
 			case REGULAR_MAX:
 				return "Fires when a regular (non-special) attack deals your maximum possible hit";
+			case REGULAR_AMOUNT:
+				return "Fires when a regular (non-special) attack's total damage (all hitsplats summed) matches the chosen comparison (e.g. = 73)";
 			case SPECIAL_ZERO:
 				return "Fires when a special attack deals 0 damage";
 			case SPECIAL_HIT:
-				return "Fires when a special attack deals 1 or more damage";
+				return "Fires when a special attack deals 1 or more damage, but not a max hit";
 			case SPECIAL_MAX:
 				return "Fires when a special attack deals your maximum possible hit";
+			case SPECIAL_AMOUNT:
+				return "Fires when a special attack's total damage (all hitsplats summed) matches the chosen comparison (e.g. = 73)";
 			case ALL:
 				return "Fires on every attack, regardless of the outcome";
 			case KILL:

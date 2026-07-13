@@ -1,8 +1,10 @@
 package com.customweaponsfx;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import lombok.Getter;
 import lombok.Setter;
@@ -12,6 +14,8 @@ public class TriggerGroup
 {
 	private final Set<Triggers> triggers;
 	private final List<SoundEntry> sounds;
+	/** Per-trigger numeric comparisons for amount-based triggers (see {@link Triggers#isAmount()}). */
+	private final Map<Triggers, AmountCondition> amountConditions = new EnumMap<>(Triggers.class);
 	@Setter private int chance;
 	@Setter private String name;
 
@@ -20,6 +24,19 @@ public class TriggerGroup
 		this.triggers = triggers != null ? triggers : EnumSet.noneOf(Triggers.class);
 		this.sounds = sounds != null ? sounds : new ArrayList<>();
 		this.chance = chance;
+	}
+
+	/** The {@link AmountCondition} configured for {@code trigger}, or {@code null} if none. */
+	public AmountCondition getAmountCondition(Triggers trigger)
+	{
+		return amountConditions.get(trigger);
+	}
+
+	/** Sets (or, when {@code condition} is null, clears) the comparison for an amount-based trigger. */
+	public void setAmountCondition(Triggers trigger, AmountCondition condition)
+	{
+		if (condition == null) amountConditions.remove(trigger);
+		else amountConditions.put(trigger, condition);
 	}
 
 	/**
@@ -69,5 +86,43 @@ public class TriggerGroup
 			catch (IllegalArgumentException ignored) {}
 		}
 		return set;
+	}
+
+	/**
+	 * Serializes amount-trigger conditions to {@code "TRIGGER=OP:value;TRIGGER=OP:value"}, e.g.
+	 * {@code "REGULAR_AMOUNT=EQUAL:73"}. Empty when no conditions are set.
+	 */
+	public static String serializeAmountConditions(Map<Triggers, AmountCondition> conditions)
+	{
+		if (conditions == null || conditions.isEmpty()) return "";
+		StringBuilder sb = new StringBuilder();
+		for (Map.Entry<Triggers, AmountCondition> e : conditions.entrySet())
+		{
+			if (e.getValue() == null) continue;
+			if (sb.length() > 0) sb.append(';');
+			sb.append(e.getKey().name()).append('=').append(e.getValue().serialize());
+		}
+		return sb.toString();
+	}
+
+	public static Map<Triggers, AmountCondition> deserializeAmountConditions(String s)
+	{
+		Map<Triggers, AmountCondition> map = new EnumMap<>(Triggers.class);
+		if (s == null || s.isBlank()) return map;
+		for (String part : s.split(";"))
+		{
+			part = part.trim();
+			if (part.isEmpty()) continue;
+			int eq = part.indexOf('=');
+			if (eq <= 0) continue;
+			try
+			{
+				Triggers trigger = Triggers.valueOf(part.substring(0, eq).trim());
+				AmountCondition condition = AmountCondition.deserialize(part.substring(eq + 1));
+				if (condition != null) map.put(trigger, condition);
+			}
+			catch (IllegalArgumentException ignored) {}
+		}
+		return map;
 	}
 }

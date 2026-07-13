@@ -1,12 +1,15 @@
 package com.customweaponsfx;
 
 import java.util.ArrayList;
+import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 public class TriggerGroupTest
@@ -44,6 +47,55 @@ public class TriggerGroupTest
 		// blow away the rest of a user's saved group.
 		Set<Triggers> result = TriggerGroup.deserializeTriggers("REGULAR_HIT,SOMETHING_REMOVED,KILL");
 		assertEquals(EnumSet.of(Triggers.REGULAR_HIT, Triggers.KILL), result);
+	}
+
+	@Test
+	public void amountConditionsSerializeDeserializeRoundTrip()
+	{
+		Map<Triggers, AmountCondition> original = new EnumMap<>(Triggers.class);
+		original.put(Triggers.REGULAR_AMOUNT, new AmountCondition(AmountCondition.Op.EQUAL, 73));
+
+		String serialized = TriggerGroup.serializeAmountConditions(original);
+		Map<Triggers, AmountCondition> restored = TriggerGroup.deserializeAmountConditions(serialized);
+
+		assertEquals(1, restored.size());
+		AmountCondition c = restored.get(Triggers.REGULAR_AMOUNT);
+		assertEquals(AmountCondition.Op.EQUAL, c.getOp());
+		assertEquals(73, c.getValue());
+	}
+
+	@Test
+	public void emptyAmountConditionsSerializeToEmptyString()
+	{
+		assertEquals("", TriggerGroup.serializeAmountConditions(new EnumMap<>(Triggers.class)));
+		assertEquals("", TriggerGroup.serializeAmountConditions(null));
+		assertTrue(TriggerGroup.deserializeAmountConditions(null).isEmpty());
+		assertTrue(TriggerGroup.deserializeAmountConditions("").isEmpty());
+		assertTrue(TriggerGroup.deserializeAmountConditions("  ").isEmpty());
+	}
+
+	@Test
+	public void deserializeAmountConditionsIgnoresMalformedEntries()
+	{
+		// A valid entry survives alongside an unknown trigger and a malformed condition.
+		Map<Triggers, AmountCondition> restored = TriggerGroup.deserializeAmountConditions(
+			"REGULAR_AMOUNT=GREATER:50;BOGUS=EQUAL:1;REGULAR_MAX=notacondition");
+		assertEquals(1, restored.size());
+		assertEquals(AmountCondition.Op.GREATER, restored.get(Triggers.REGULAR_AMOUNT).getOp());
+		assertEquals(50, restored.get(Triggers.REGULAR_AMOUNT).getValue());
+	}
+
+	@Test
+	public void newTriggerGroupHasNoAmountConditions()
+	{
+		TriggerGroup g = new TriggerGroup(null, null, 100);
+		assertTrue(g.getAmountConditions().isEmpty());
+		assertNull(g.getAmountCondition(Triggers.REGULAR_AMOUNT));
+		g.setAmountCondition(Triggers.REGULAR_AMOUNT, new AmountCondition(AmountCondition.Op.EQUAL, 5));
+		assertEquals(5, g.getAmountCondition(Triggers.REGULAR_AMOUNT).getValue());
+		// A null condition clears it.
+		g.setAmountCondition(Triggers.REGULAR_AMOUNT, null);
+		assertNull(g.getAmountCondition(Triggers.REGULAR_AMOUNT));
 	}
 
 	@Test

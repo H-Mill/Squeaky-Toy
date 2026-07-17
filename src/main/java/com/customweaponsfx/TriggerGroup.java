@@ -16,6 +16,12 @@ public class TriggerGroup
 	private final List<SoundEntry> sounds;
 	/** Per-trigger numeric comparisons for amount-based triggers (see {@link Triggers#isAmount()}). */
 	private final Map<Triggers, AmountCondition> amountConditions = new EnumMap<>(Triggers.class);
+	/**
+	 * Weapons for which this group is suppressed. Only meaningful for Global (All Weapons) groups: when
+	 * the attacking weapon is listed here, this group does not play (its weapon-specific and other Global
+	 * groups are unaffected).
+	 */
+	private final List<BlacklistEntry> blacklist = new ArrayList<>();
 	@Setter private int chance;
 	@Setter private String name;
 
@@ -37,6 +43,30 @@ public class TriggerGroup
 	{
 		if (condition == null) amountConditions.remove(trigger);
 		else amountConditions.put(trigger, condition);
+	}
+
+	/** True if {@code itemId} is on this group's blacklist, so the group should not play for that weapon. */
+	public boolean isBlacklisted(int itemId)
+	{
+		for (BlacklistEntry e : blacklist)
+		{
+			if (e.getItemId() == itemId) return true;
+		}
+		return false;
+	}
+
+	/** Adds {@code itemId} to this group's blacklist; returns {@code false} (no-op) if already present. */
+	public boolean addToBlacklist(int itemId, String name)
+	{
+		if (isBlacklisted(itemId)) return false;
+		blacklist.add(new BlacklistEntry(itemId, name));
+		return true;
+	}
+
+	/** Removes {@code itemId} from this group's blacklist. */
+	public void removeFromBlacklist(int itemId)
+	{
+		blacklist.removeIf(e -> e.getItemId() == itemId);
 	}
 
 	/**
@@ -124,5 +154,41 @@ public class TriggerGroup
 			catch (IllegalArgumentException ignored) {}
 		}
 		return map;
+	}
+
+	/**
+	 * Serializes a blacklist to {@code "id:name;id:name"}, e.g. {@code "1215:Dragon dagger;4151:Abyssal whip"}.
+	 * Empty when the blacklist is empty. (OSRS item names contain neither {@code :} nor {@code ;}.)
+	 */
+	public static String serializeBlacklist(List<BlacklistEntry> blacklist)
+	{
+		if (blacklist == null || blacklist.isEmpty()) return "";
+		StringBuilder sb = new StringBuilder();
+		for (BlacklistEntry e : blacklist)
+		{
+			if (sb.length() > 0) sb.append(';');
+			sb.append(e.getItemId()).append(':').append(e.getWeaponName());
+		}
+		return sb.toString();
+	}
+
+	public static List<BlacklistEntry> deserializeBlacklist(String s)
+	{
+		List<BlacklistEntry> list = new ArrayList<>();
+		if (s == null || s.isBlank()) return list;
+		for (String part : s.split(";"))
+		{
+			if (part.trim().isEmpty()) continue;
+			int colon = part.indexOf(':');
+			if (colon <= 0) continue;
+			try
+			{
+				int itemId = Integer.parseInt(part.substring(0, colon).trim());
+				String name = part.substring(colon + 1);
+				list.add(new BlacklistEntry(itemId, name));
+			}
+			catch (NumberFormatException ignored) {}
+		}
+		return list;
 	}
 }

@@ -12,6 +12,7 @@ Play custom sound effects when you attack or get hit in Old School RuneScape.
 - Dedicated **Player death** trigger (Received Attacks) that fires when your character dies
 - Separate sounds for when *you* take damage (Received Attacks)
 - **Global (All Weapons)** fallback section — plays sounds for any weapon that doesn't have its own configuration for a given trigger
+- **Per-group blacklist** — exclude specific weapons from an individual Global sound group, so it plays for everything else
 - Multiple sound groups per weapon or section, each with its own triggers, sounds, volume, and activation chance
 - Multiple sounds per group — one is picked at random each time the group fires, with an adjustable **weight** to make some sounds more likely than others
 - Per-group activation chance (0–100%) for randomized playback
@@ -124,6 +125,20 @@ If you would rather have both the weapon-specific and global sounds play for ove
 
 The global section only fires for outgoing hits — it is not affected by incoming damage.
 
+### Blacklisting weapons from a Global group
+
+Each **Global (All Weapons)** sound group has its own **Blacklist** — a list of weapons that group will *not* play for. Use it when a global sound suits most of your weapons but you want a handful excluded, without having to give those weapons their own configuration.
+
+Expand a Global sound group to find its **Blacklist** row, then add weapons the same way you add them elsewhere:
+
+- **Search** (magnifying-glass icon) — find a weapon by name (requires being logged in).
+- **Add (Equipped)** (plus icon) — blacklist your currently equipped weapon.
+- **Delete** (trash icon) — remove a weapon from the list.
+
+When you attack with a blacklisted weapon, that group is skipped. **Only that one group is affected** — the weapon still plays its own weapon-specific sounds and any *other* Global groups it isn't blacklisted from. The blacklist is per group, so the same weapon can be excluded from one Global group while still playing another.
+
+**Example:** you have a Global *Special attack max* group with a generic max-hit sound. Add your Zaryte crossbow (ZCB) to that group's blacklist so its spec maxes stay silent (or play only their own weapon-specific sound), while every other weapon keeps playing the global spec-max sound.
+
 ## Enabling and Disabling Weapons and Sections
 
 Each weapon row, the **Received Attacks** section, and the **Global (All Weapons)** section each have a checkbox in their header. Unchecking it disables that weapon or section — its sound groups will not fire — without removing any configuration. Check it again to re-enable.
@@ -191,6 +206,10 @@ Click **Reset All Data** to clear all weapons and sound groups and restore defau
 **Splashing** - Your players splashing, like thrall zeros, cannot be distinguished from other players splashes, so I opted to not include them in the plugin (everyones splashes around you would cause a SFX).
 
 ## Version History
+
+### 2.13
+
+- Add a **per-group blacklist** to the **Global (All Weapons)** section — each Global sound group can now exclude specific weapons, so the group plays for every weapon *except* the ones you list. Expand a Global group to find its **Blacklist** row, then add weapons by name **Search** or **Add (Equipped)**, and remove them with the **delete** icon. Only the group you blacklist a weapon from is skipped — the weapon still plays its own sounds and any other Global groups. The blacklist is saved per group.
 
 ### 2.12
 

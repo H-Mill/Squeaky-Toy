@@ -19,7 +19,7 @@ import lombok.Getter;
 class AttackAggregator
 {
 	private boolean open;
-	private int weaponId;
+	@Getter private int weaponId;
 	private int firstTick;
 	private int hitCount;
 	private int tickSpan;

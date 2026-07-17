@@ -48,6 +48,7 @@ public class CustomWeaponSfxPanelLoginGatingTest
 				() -> {}, () -> {},
 				id -> {}, id -> {}, id -> {}, id -> {}, id -> {},
 				(fromId, toIndex) -> {},
+				sink -> {}, sink -> {},
 				(name, id) -> {}, group -> {},
 				() -> {}, () -> {}, () -> {},
 				(option, on) -> {},

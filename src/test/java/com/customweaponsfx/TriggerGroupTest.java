@@ -107,6 +107,59 @@ public class TriggerGroupTest
 		assertEquals(50, g.getChance());
 	}
 
+	@Test
+	public void blacklistSerializeDeserializeRoundTrips()
+	{
+		List<BlacklistEntry> original = new ArrayList<>();
+		original.add(new BlacklistEntry(4151, "Abyssal whip"));
+		original.add(new BlacklistEntry(1215, "Dragon dagger"));
+
+		String serialized = TriggerGroup.serializeBlacklist(original);
+		List<BlacklistEntry> restored = TriggerGroup.deserializeBlacklist(serialized);
+
+		assertEquals(2, restored.size());
+		assertEquals(4151, restored.get(0).getItemId());
+		assertEquals("Abyssal whip", restored.get(0).getWeaponName());
+		assertEquals(1215, restored.get(1).getItemId());
+		assertEquals("Dragon dagger", restored.get(1).getWeaponName());
+	}
+
+	@Test
+	public void emptyBlacklistSerializesToEmptyStringAndBack()
+	{
+		assertEquals("", TriggerGroup.serializeBlacklist(new ArrayList<>()));
+		assertEquals("", TriggerGroup.serializeBlacklist(null));
+		assertTrue(TriggerGroup.deserializeBlacklist(null).isEmpty());
+		assertTrue(TriggerGroup.deserializeBlacklist("").isEmpty());
+		assertTrue(TriggerGroup.deserializeBlacklist("  ").isEmpty());
+	}
+
+	@Test
+	public void deserializeBlacklistIgnoresMalformedEntries()
+	{
+		// A valid entry survives alongside a non-numeric id and a colon-less token.
+		List<BlacklistEntry> restored = TriggerGroup.deserializeBlacklist("4151:Abyssal whip;bogus:x;noColon");
+		assertEquals(1, restored.size());
+		assertEquals(4151, restored.get(0).getItemId());
+		assertEquals("Abyssal whip", restored.get(0).getWeaponName());
+	}
+
+	@Test
+	public void addToBlacklistIsIdempotentAndRemoveWorks()
+	{
+		TriggerGroup g = new TriggerGroup(null, null, 100);
+		assertFalse(g.isBlacklisted(4151));
+
+		assertTrue("first add succeeds", g.addToBlacklist(4151, "Abyssal whip"));
+		assertFalse("duplicate add is a no-op", g.addToBlacklist(4151, "Abyssal whip"));
+		assertTrue(g.isBlacklisted(4151));
+		assertEquals(1, g.getBlacklist().size());
+
+		g.removeFromBlacklist(4151);
+		assertFalse(g.isBlacklisted(4151));
+		assertTrue(g.getBlacklist().isEmpty());
+	}
+
 	private static TriggerGroup named(String name)
 	{
 		TriggerGroup g = new TriggerGroup(null, null, 100);

@@ -264,7 +264,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 		npcFilter.load();
 		soundMute.load();
 
-		panel = new CustomWeaponSfxPanel(store, itemManager, this::openWeaponSearch, this::addEquippedWeapon, weapons::remove, this::editWeaponViaSearch, this::editWeaponToEquipped, this::copyWeapon, this::copyWeaponToEquipped, weapons::move, soundPlayer::playSoundFile, soundPlayer::fireGroup, this::resetAllData, this::refreshSounds, this::openConfiguration, this::onOptionChanged, npcFilter::setIds, npcFilter::setNames, soundMute::setIds, developerMode ? this::runDebugDamage : null);
+		panel = new CustomWeaponSfxPanel(store, itemManager, this::openWeaponSearch, this::addEquippedWeapon, weapons::remove, this::editWeaponViaSearch, this::editWeaponToEquipped, this::copyWeapon, this::copyWeaponToEquipped, weapons::move, this::pickWeaponForBlacklist, this::pickEquippedForBlacklist, soundPlayer::playSoundFile, soundPlayer::fireGroup, this::resetAllData, this::refreshSounds, this::openConfiguration, this::onOptionChanged, npcFilter::setIds, npcFilter::setNames, soundMute::setIds, developerMode ? this::runDebugDamage : null);
 
 		rebuildNavButton();
 
@@ -348,7 +348,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 		// Fire an aggregated multi-hit attack once all its hitsplats have landed (see AttackAggregator).
 		if (attackSpread.isComplete(client.getTickCount()))
 		{
-			fireAttack(attackSpread.getGroups(), attackSpread.isDontOverrideGlobal(), attackSpread.buildOutcome());
+			fireAttack(attackSpread.getWeaponId(), attackSpread.getGroups(), attackSpread.isDontOverrideGlobal(), attackSpread.buildOutcome());
 			attackSpread.reset();
 		}
 
@@ -658,7 +658,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 				}
 			}
 
-			fireAttack(attack.groups, attack.dontOverrideGlobal, attack.collapse(isKill));
+			fireAttack(attack.key, attack.groups, attack.dontOverrideGlobal, attack.collapse(isKill));
 			if (attack.wasSpec) specHitsplatSeen = true;
 		}
 		// Clear the spec window as soon as the spec's hitsplat has been processed
@@ -670,7 +670,7 @@ public class CustomWeaponSfxPlugin extends Plugin
 	}
 
 	/** Fires the weapon's groups and (unless overridden) the Global groups that match {@code outcome}. */
-	private void fireAttack(List<TriggerGroup> groups, boolean dontOverrideGlobal, AttackOutcome outcome)
+	private void fireAttack(int weaponId, List<TriggerGroup> groups, boolean dontOverrideGlobal, AttackOutcome outcome)
 	{
 		if (soundPlayer == null) return;
 
@@ -685,7 +685,11 @@ public class CustomWeaponSfxPlugin extends Plugin
 		if (opt(SfxOption.GLOBAL_ENABLED) && groups != receivedGroups)
 		{
 			Set<Triggers> weaponCoveredTriggers = coveredGlobalTriggers(groups, dontOverrideGlobal);
-			soundPlayer.fireMatchingGroups(globalWeaponGroups, outcome.wasSpec, outcome.anyHit, outcome.allZero, outcome.allMax,
+			// Each Global group can blacklist specific weapons; skip the groups that exclude this one.
+			List<TriggerGroup> applicable = globalWeaponGroups.stream()
+					.filter(g -> !g.isBlacklisted(weaponId))
+					.collect(Collectors.toList());
+			soundPlayer.fireMatchingGroups(applicable, outcome.wasSpec, outcome.anyHit, outcome.allZero, outcome.allMax,
 					suppressMax, suppressZero, outcome.isKill, weaponCoveredTriggers, outcome.amounts);
 		}
 	}
@@ -809,6 +813,35 @@ public class CustomWeaponSfxPlugin extends Plugin
 			if (weaponId < 0) return;
 			String name = client.getItemDefinition(weaponId).getName();
 			weapons.add(weaponId, name);
+		});
+	}
+
+	/**
+	 * Opens the weapon search and hands the picked item's id + name back to {@code sink} (a group's
+	 * blacklist add). Resolving the item needs the client thread; the panel's sink hops back to the EDT.
+	 */
+	private void pickWeaponForBlacklist(java.util.function.BiConsumer<Integer, String> sink)
+	{
+		clientThread.invoke(() ->
+		{
+			if (!requireLoggedIn("search for weapons")) return;
+			weaponSearch
+				.onItemSelected(itemId ->
+					sink.accept(itemId, client.getItemDefinition(itemId).getName()))
+				.build();
+		});
+		client.getCanvas().requestFocusInWindow();
+	}
+
+	/** Hands the currently equipped weapon's id + name back to {@code sink} — the no-search counterpart. */
+	private void pickEquippedForBlacklist(java.util.function.BiConsumer<Integer, String> sink)
+	{
+		clientThread.invoke(() ->
+		{
+			if (!requireLoggedIn("add an equipped weapon")) return;
+			int weaponId = getEquippedWeaponId();
+			if (weaponId < 0) return;
+			sink.accept(weaponId, client.getItemDefinition(weaponId).getName());
 		});
 	}
 

@@ -193,6 +193,10 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	private final Consumer<Integer> onCopyWeapon;
 	private final Consumer<Integer> onCopyWeaponEquipped;
 	private final BiConsumer<Integer, Integer> onReorderWeapon;
+	/** Opens the weapon search, handing the picked weapon's (id, name) back to the given blacklist-add sink. */
+	private final Consumer<BiConsumer<Integer, String>> onBlacklistSearch;
+	/** Resolves the equipped weapon, handing its (id, name) back to the given blacklist-add sink. */
+	private final Consumer<BiConsumer<Integer, String>> onBlacklistEquipped;
 	private final BiConsumer<String, Integer> onTestSound;
 	private final Consumer<TriggerGroup> onTestGroup;
 	private final Runnable onReset;
@@ -224,6 +228,8 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		Consumer<Integer> onCopyWeapon,
 		Consumer<Integer> onCopyWeaponEquipped,
 		BiConsumer<Integer, Integer> onReorderWeapon,
+		Consumer<BiConsumer<Integer, String>> onBlacklistSearch,
+		Consumer<BiConsumer<Integer, String>> onBlacklistEquipped,
 		BiConsumer<String, Integer> onTestSound,
 		Consumer<TriggerGroup> onTestGroup,
 		Runnable onReset,
@@ -245,6 +251,8 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		this.onCopyWeapon = onCopyWeapon;
 		this.onCopyWeaponEquipped = onCopyWeaponEquipped;
 		this.onReorderWeapon = onReorderWeapon;
+		this.onBlacklistSearch = onBlacklistSearch;
+		this.onBlacklistEquipped = onBlacklistEquipped;
 		this.onTestSound = onTestSound;
 		this.onTestGroup = onTestGroup;
 		this.onReset = onReset;
@@ -584,7 +592,8 @@ public class CustomWeaponSfxPanel extends PluginPanel
 					+ "weapon you have equipped. Configure sound groups and triggers<br>"
 					+ "for incoming attacks here.</html>",
 				RECEIVED_GROUPS_PREFIX, receivedGroups, availableSounds,
-				EnumSet.of(Triggers.REGULAR_ZERO, Triggers.REGULAR_HIT, Triggers.ALL, Triggers.PLAYER_DEATH), SfxOption.RECEIVED_ENABLED));
+				EnumSet.of(Triggers.REGULAR_ZERO, Triggers.REGULAR_HIT, Triggers.ALL, Triggers.PLAYER_DEATH), SfxOption.RECEIVED_ENABLED,
+				false));
 			weaponListPanel.add(Box.createVerticalStrut(4));
 
 			weaponListPanel.add(buildDefaultRowGroups(
@@ -595,7 +604,8 @@ public class CustomWeaponSfxPanel extends PluginPanel
 					+ "they do not stack (unless that weapon's <b>Don't override Global</b><br>"
 					+ "toggle is enabled).</html>",
 				GLOBAL_WEAPON_GROUPS_PREFIX, globalWeaponGroups, availableSounds,
-				EnumSet.complementOf(EnumSet.of(Triggers.REGULAR_HIT, Triggers.PLAYER_DEATH)), SfxOption.GLOBAL_ENABLED));
+				EnumSet.complementOf(EnumSet.of(Triggers.REGULAR_HIT, Triggers.PLAYER_DEATH)), SfxOption.GLOBAL_ENABLED,
+				true));
 			weaponListPanel.add(Box.createVerticalStrut(4));
 
 
@@ -627,7 +637,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 
 	private JPanel buildDefaultRowGroups(String label, String tooltip, String prefix,
 		List<TriggerGroup> groups, List<String> availableSounds, Set<Triggers> visibleTriggers,
-		SfxOption enabledOption)
+		SfxOption enabledOption, boolean showBlacklist)
 	{
 		JLabel nameLabel = new JLabel(label);
 		nameLabel.setForeground(ColorScheme.BRAND_ORANGE);
@@ -651,7 +661,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			null, null, nameLabel, eastControls, false, 0,
 			null,
 			groups, availableSounds,
-			() -> store.saveDefaultGroups(prefix, groups), visibleTriggers);
+			() -> store.saveDefaultGroups(prefix, groups), visibleTriggers, showBlacklist);
 	}
 
 	private static final Color ROW_COLOR_A = ColorScheme.DARKER_GRAY_COLOR;
@@ -765,7 +775,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			dontOverrideGlobalBox,
 			entry.getGroups(), availableSounds,
 			() -> store.saveWeaponGroups(entry),
-			EnumSet.complementOf(EnumSet.of(Triggers.REGULAR_HIT, Triggers.PLAYER_DEATH)));
+			EnumSet.complementOf(EnumSet.of(Triggers.REGULAR_HIT, Triggers.PLAYER_DEATH)), false);
 
 		// Only the drag handle starts a reorder: an otherwise-empty listener on the row consumes presses on
 		// its dead areas so they don't bubble to the reorder pane and begin a whole-row drag.
@@ -837,7 +847,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 		int headerMaxHeight,
 		Component bodyLeading,
 		List<TriggerGroup> groups, List<String> availableSounds,
-		Runnable onSave, Set<Triggers> visibleTriggers)
+		Runnable onSave, Set<Triggers> visibleTriggers, boolean showBlacklist)
 	{
 		boolean collapsed = !expandedSet.contains(key);
 
@@ -928,7 +938,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 
 		JPanel groupsHolder = boxColumn(bg);
 		groupsHolder.setVisible(!collapsed);
-		rebuildGroupsSection(groupsHolder, groups, availableSounds, onSave, visibleTriggers);
+		rebuildGroupsSection(groupsHolder, groups, availableSounds, onSave, visibleTriggers, showBlacklist);
 		panel.add(groupsHolder);
 
 		collapseBtn.addActionListener(e ->
@@ -950,7 +960,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 	}
 
 	private void rebuildGroupsSection(JPanel holder, List<TriggerGroup> groups,
-		List<String> availableSounds, Runnable onSave, Set<Triggers> visibleTriggers)
+		List<String> availableSounds, Runnable onSave, Set<Triggers> visibleTriggers, boolean showBlacklist)
 	{
 		holder.removeAll();
 
@@ -1009,7 +1019,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 				}
 				group.setName(trimmed);
 				onSave.run();
-				rebuildGroupsSection(holder, groups, availableSounds, onSave, visibleTriggers);
+				rebuildGroupsSection(holder, groups, availableSounds, onSave, visibleTriggers, showBlacklist);
 			});
 			headerButtons.add(renameGroupBtn);
 
@@ -1019,7 +1029,7 @@ public class CustomWeaponSfxPanel extends PluginPanel
 				if (!confirmYesNo("Remove \"" + groupName + "\"?", "Remove Sound Group")) return;
 				groups.remove(idx);
 				onSave.run();
-				rebuildGroupsSection(holder, groups, availableSounds, onSave, visibleTriggers);
+				rebuildGroupsSection(holder, groups, availableSounds, onSave, visibleTriggers, showBlacklist);
 			});
 			headerButtons.add(removeGroupBtn);
 
@@ -1038,6 +1048,14 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			groupPanel.add(Box.createVerticalStrut(4));
 			groupPanel.add(buildTriggersPanel(group, onSave, visibleTriggers));
 
+			if (showBlacklist)
+			{
+				groupPanel.add(Box.createVerticalStrut(4));
+				groupPanel.add(buildGroupBlacklistPanel(group,
+					() -> rebuildGroupsSection(holder, groups, availableSounds, onSave, visibleTriggers, true),
+					onSave));
+			}
+
 			holder.add(groupPanel);
 			if (i < groups.size() - 1)
 				holder.add(Box.createVerticalStrut(4));
@@ -1055,12 +1073,120 @@ public class CustomWeaponSfxPanel extends PluginPanel
 			newGroup.setName(TriggerGroup.defaultName(groups));
 			groups.add(newGroup);
 			onSave.run();
-			rebuildGroupsSection(holder, groups, availableSounds, onSave, visibleTriggers);
+			rebuildGroupsSection(holder, groups, availableSounds, onSave, visibleTriggers, showBlacklist);
 		});
 		holder.add(addGroupBtn);
 
 		holder.revalidate();
 		holder.repaint();
+	}
+
+	/**
+	 * A group's blacklist sub-section: a header with search / add-equipped buttons and one row per
+	 * blacklisted weapon (icon, name, delete). Shown only for Global (All Weapons) groups — the group
+	 * is suppressed for the weapons listed here. {@code rebuildSection} re-renders the enclosing groups
+	 * list after an add/remove so the new rows appear.
+	 */
+	private JPanel buildGroupBlacklistPanel(TriggerGroup group, Runnable rebuildSection, Runnable onSave)
+	{
+		JPanel panel = boxColumn(ColorScheme.DARK_GRAY_COLOR);
+		panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+		JPanel headerRow = new JPanel();
+		headerRow.setLayout(new BoxLayout(headerRow, BoxLayout.X_AXIS));
+		headerRow.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		headerRow.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+		JLabel lbl = new JLabel("Blacklist:");
+		lbl.setForeground(Color.WHITE);
+		lbl.setToolTipText("<html>Weapons listed here do <b>not</b> play this Global sound group.<br>"
+			+ "Their own weapon-specific sounds and other Global groups are unaffected.</html>");
+		headerRow.add(lbl);
+
+		headerRow.add(Box.createHorizontalGlue());
+
+		// The sink mutates the group on the EDT (matching the other panel edits) then re-renders the list.
+		BiConsumer<Integer, String> addSink = (itemId, name) -> SwingUtilities.invokeLater(() ->
+		{
+			if (group.addToBlacklist(itemId, name))
+			{
+				onSave.run();
+				rebuildSection.run();
+			}
+		});
+
+		JButton addSearchBtn = makeImageButton(ADD_SEARCH_ICON, ADD_SEARCH_HOVER_ICON,
+			"Search for a weapon to exclude from this Global sound group");
+		addSearchBtn.addActionListener(e -> onBlacklistSearch.accept(addSink));
+		registerLoginButton(addSearchBtn, weaponLoginButtons);
+		headerRow.add(addSearchBtn);
+
+		headerRow.add(Box.createHorizontalStrut(4));
+
+		JButton addEquippedBtn = makeImageButton(ADD_PLUS_ICON, ADD_PLUS_HOVER_ICON,
+			"Exclude your currently equipped weapon from this Global sound group");
+		addEquippedBtn.addActionListener(e -> onBlacklistEquipped.accept(addSink));
+		registerEquippedWeaponButton(addEquippedBtn);
+		headerRow.add(addEquippedBtn);
+
+		headerRow.setMaximumSize(new Dimension(Integer.MAX_VALUE, headerRow.getPreferredSize().height));
+		panel.add(headerRow);
+
+		List<BlacklistEntry> blacklist = group.getBlacklist();
+		if (blacklist.isEmpty())
+		{
+			JLabel emptyLabel = new JLabel("No weapons blacklisted.");
+			emptyLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+			emptyLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+			emptyLabel.setBorder(new EmptyBorder(2, 0, 0, 0));
+			panel.add(emptyLabel);
+		}
+		else
+		{
+			for (BlacklistEntry entry : blacklist)
+			{
+				panel.add(Box.createVerticalStrut(4));
+				panel.add(buildGroupBlacklistRow(group, entry, rebuildSection, onSave));
+			}
+		}
+
+		return panel;
+	}
+
+	/** One blacklisted-weapon row within a group: its icon, name, and a delete button on the right edge. */
+	private JPanel buildGroupBlacklistRow(TriggerGroup group, BlacklistEntry entry,
+		Runnable rebuildSection, Runnable onSave)
+	{
+		JPanel row = new JPanel(new BorderLayout(6, 0));
+		row.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		row.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+		JLabel iconLabel = new JLabel();
+		iconLabel.setPreferredSize(new Dimension(24, 24));
+		iconLabel.setToolTipText(entry.getWeaponName());
+		AsyncBufferedImage icon = itemManager.getImage(entry.getItemId());
+		if (icon != null)
+		{
+			icon.addTo(iconLabel);
+		}
+		row.add(iconLabel, BorderLayout.WEST);
+
+		JLabel nameLabel = new JLabel(entry.getWeaponName());
+		nameLabel.setForeground(Color.WHITE);
+		nameLabel.setToolTipText(entry.getWeaponName());
+		row.add(nameLabel, BorderLayout.CENTER);
+
+		JButton removeBtn = makeRemoveButton("Remove from blacklist");
+		removeBtn.addActionListener(e ->
+		{
+			group.removeFromBlacklist(entry.getItemId());
+			onSave.run();
+			rebuildSection.run();
+		});
+		row.add(removeBtn, BorderLayout.EAST);
+
+		row.setMaximumSize(new Dimension(Integer.MAX_VALUE, row.getPreferredSize().height));
+		return row;
 	}
 
 	private JPanel buildTriggersPanel(TriggerGroup group, Runnable onSave, Set<Triggers> visibleTriggers)

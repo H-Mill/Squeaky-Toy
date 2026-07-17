@@ -294,6 +294,34 @@ public class CustomWeaponSfxConfigStoreTest
 	}
 
 	@Test
+	public void groupBlacklistRoundTripsThroughSaveAndLoad()
+	{
+		String prefix = CustomWeaponSfxPanel.GLOBAL_WEAPON_GROUPS_PREFIX;
+		List<TriggerGroup> groups = new ArrayList<>();
+		TriggerGroup g = group(EnumSet.of(Triggers.ALL), 100, new SoundEntry("g", 50));
+		g.addToBlacklist(4151, "Abyssal whip");
+		g.addToBlacklist(1215, "Dragon dagger");
+		groups.add(g);
+
+		store.saveDefaultGroups(prefix, groups);
+
+		TriggerGroup loaded = store.loadDefaultGroups(prefix).get(0);
+		assertEquals(2, loaded.getBlacklist().size());
+		assertTrue(loaded.isBlacklisted(4151));
+		assertTrue(loaded.isBlacklisted(1215));
+		assertEquals("Abyssal whip", loaded.getBlacklist().get(0).getWeaponName());
+		assertEquals("Dragon dagger", loaded.getBlacklist().get(1).getWeaponName());
+	}
+
+	@Test
+	public void groupWithoutBlacklistLoadsEmpty()
+	{
+		backend.set("globalWeapon_groupCount", 1);
+		backend.set("globalWeapon_group_0_triggers", "ALL");
+		assertTrue(store.loadDefaultGroups("globalWeapon").get(0).getBlacklist().isEmpty());
+	}
+
+	@Test
 	public void getBoolReturnsDefaultWhenAbsentAndParsesWhenPresent()
 	{
 		assertTrue(store.getBool("missingKey", true));
